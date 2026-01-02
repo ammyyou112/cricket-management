@@ -1,0 +1,185 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import { teamService } from '../../services/team.service';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
+import { Badge } from '../../components/ui/badge';
+import { Skeleton } from '../../components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { useToast } from '../../components/ui/use-toast';
+import { LogOut, Eye, Shield } from 'lucide-react';
+import type { Team } from '../../types/api.types';
+
+const MyTeams = () => {
+    const { user } = useAuth();
+    const navigate = useNavigate();
+    const { toast } = useToast();
+    const [teams, setTeams] = useState<Team[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const loadMyTeams = async () => {
+            try {
+                setLoading(true);
+                console.log('🔍 Player: Loading my teams...');
+                
+                const data = await teamService.getMyTeams();
+                const teamsData = Array.isArray(data) ? data : (data?.data || []);
+                
+                console.log('✅ Player teams loaded:', teamsData.length);
+                setTeams(teamsData);
+            } catch (err: any) {
+                console.error('❌ Failed to load teams:', err);
+                toast({
+                    title: 'Error',
+                    description: err.message || 'Failed to load teams',
+                    variant: 'destructive',
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (user?.id) {
+            loadMyTeams();
+        }
+    }, [user?.id, toast]);
+
+    const handleLeaveTeam = async (teamId: string, teamName: string) => {
+        if (!confirm(`Are you sure you want to leave "${teamName}"?`)) {
+            return;
+        }
+
+        try {
+            console.log('🔵 Leaving team:', teamId);
+            // Note: Backend might need a "leave team" endpoint
+            // For now, we'll use removeMember with current user's ID
+            if (user?.id) {
+                await teamService.removeMember(teamId, user.id);
+                console.log('✅ Left team successfully');
+                toast({
+                    title: 'Success',
+                    description: 'You have left the team',
+                });
+                // Remove from state
+                setTeams(teams.filter(t => t.id !== teamId));
+            }
+        } catch (err: any) {
+            console.error('❌ Failed to leave team:', err);
+            toast({
+                title: 'Error',
+                description: err.message || 'Failed to leave team',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="space-y-8">
+                <Skeleton className="h-10 w-48" />
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-48 w-full rounded-xl" />
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">My Teams</h1>
+                    <p className="text-muted-foreground">Teams you're currently part of</p>
+                </div>
+                <Button variant="outline" onClick={() => navigate('/player/teams')}>
+                    Browse Teams
+                </Button>
+            </div>
+
+            <Tabs defaultValue="active" className="w-full">
+                <TabsList>
+                    <TabsTrigger value="active">Active Squads</TabsTrigger>
+                    <TabsTrigger value="pending">Pending Requests</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="active" className="mt-6">
+                    {teams.length > 0 ? (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {teams.map((team) => (
+                                <Card key={team.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                                    <CardHeader className="flex flex-row items-center gap-4">
+                                        <Avatar className="h-14 w-14 border">
+                                            <AvatarImage src={team.logoUrl || undefined} />
+                                            <AvatarFallback>
+                                                {(team.teamName || team.name || 'TM').substring(0, 2).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="space-y-1">
+                                            <CardTitle>{team.teamName || team.name || 'Unnamed Team'}</CardTitle>
+                                            <Badge variant="default" className="bg-green-600 hover:bg-green-700">Active Player</Badge>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-sm text-muted-foreground line-clamp-2">
+                                            {team.description || "A competitive cricket team."}
+                                        </p>
+                                        {team.captain && (
+                                            <p className="text-xs text-muted-foreground mt-2">
+                                                Captain: {team.captain.fullName || team.captain.full_name}
+                                            </p>
+                                        )}
+                                    </CardContent>
+                                    <CardFooter className="flex justify-between gap-2">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="w-full" 
+                                            onClick={() => navigate(`/teams/${team.id}`)}
+                                        >
+                                            <Eye className="mr-2 h-4 w-4" />
+                                            View
+                                        </Button>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="w-full text-destructive hover:text-destructive hover:bg-destructive/10" 
+                                            onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                handleLeaveTeam(team.id, team.teamName || team.name || 'Team'); 
+                                            }}
+                                        >
+                                            <LogOut className="mr-2 h-4 w-4" />
+                                            Leave
+                                        </Button>
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-16 text-center border rounded-lg bg-slate-50 border-dashed">
+                            <Shield className="h-12 w-12 text-muted-foreground mb-4" />
+                            <h3 className="text-lg font-medium">No teams yet</h3>
+                            <p className="text-muted-foreground max-w-sm mb-6">
+                                You haven't joined any teams. Search for teams to join and start your journey.
+                            </p>
+                            <Button onClick={() => navigate('/player/teams')}>Browse Teams</Button>
+                        </div>
+                    )}
+                </TabsContent>
+
+                <TabsContent value="pending">
+                    <div className="py-12 text-center text-muted-foreground">
+                        Feature coming soon. (Requires API update to fetch pending requests)
+                    </div>
+                </TabsContent>
+            </Tabs>
+        </div>
+    );
+};
+
+export default MyTeams;
