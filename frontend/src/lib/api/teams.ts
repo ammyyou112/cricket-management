@@ -100,17 +100,18 @@ export const getAvailableTeams = async () => {
 };
 
 // 7. Get teams player has joined
-export const getMyTeams = async (playerId: string) => {
+export const getMyTeams = async (playerId?: string) => {
   if (MOCK_MODE) {
     await delay(300);
     const playerTeams = mockTeamMembers
-      .filter(m => m.player_id === playerId && m.status === 'active')
+      .filter(m => (!playerId || m.player_id === playerId) && m.status === 'active')
       .map(m => mockTeams.find(t => t.id === m.team_id))
       .filter(Boolean) as Team[];
     return handleApiError<Team[]>(playerTeams, null);
   }
 
-  const { data, error } = await apiClient.get<Team[]>(`/players/${playerId}/teams`);
+  // ✅ FIXED: Use correct endpoint /teams/my-teams (no playerId needed)
+  const { data, error } = await apiClient.get<Team[]>('/teams/my-teams');
   
   return handleApiError<Team[]>(data, error);
 };

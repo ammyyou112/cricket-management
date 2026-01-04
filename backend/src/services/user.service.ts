@@ -3,6 +3,7 @@ import { PasswordUtil } from '@/utils/password';
 import {
   NotFoundError,
   UnauthorizedError,
+  BadRequestError,
 } from '@/utils/errors';
 import { User, UserRole } from '@prisma/client';
 
@@ -115,9 +116,70 @@ export class UserService {
       throw new NotFoundError('User not found');
     }
 
+    // Convert location coordinates to Decimal if provided
+    const updateData: any = { ...input };
+    
+    // Handle empty strings - convert to null
+    if (input.phone === '') {
+      updateData.phone = null;
+    }
+    if (input.profilePictureUrl === '') {
+      updateData.profilePictureUrl = null;
+    }
+    if (input.city === '') {
+      updateData.city = null;
+    }
+    
+    if (input.locationLatitude !== undefined) {
+      updateData.locationLatitude = input.locationLatitude;
+    }
+    if (input.locationLongitude !== undefined) {
+      updateData.locationLongitude = input.locationLongitude;
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: input,
+      data: updateData,
+    });
+
+    const { password, ...userWithoutPassword } = updatedUser;
+    return userWithoutPassword;
+  }
+
+  /**
+   * Update user location
+   */
+  static async updateLocation(
+    userId: string,
+    locationLatitude: number,
+    locationLongitude: number
+  ): Promise<Omit<User, 'password'>> {
+    // Validate coordinates
+    if (
+      typeof locationLatitude !== 'number' ||
+      typeof locationLongitude !== 'number' ||
+      locationLatitude < -90 ||
+      locationLatitude > 90 ||
+      locationLongitude < -180 ||
+      locationLongitude > 180
+    ) {
+      throw new BadRequestError('Invalid coordinates');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        locationLatitude,
+        locationLongitude,
+      },
     });
 
     const { password, ...userWithoutPassword } = updatedUser;

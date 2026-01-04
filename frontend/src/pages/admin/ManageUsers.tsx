@@ -7,7 +7,7 @@ export default function ManageUsers() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [suspendDialog, setSuspendDialog] = useState<{ userId: string; userName: string } | null>(null);
@@ -193,20 +193,20 @@ export default function ManageUsers() {
     );
   }
 
-  return (
+    return (
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Manage Users</h1>
         <p className="text-gray-600">View and manage all users ({users.length} total)</p>
-      </div>
+            </div>
 
       {/* Filters */}
       <div className="mb-6 flex gap-4">
         <input
           type="text"
           placeholder="Search by name or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
         />
         <select
@@ -234,14 +234,14 @@ export default function ManageUsers() {
         <div className="bg-white p-4 rounded-lg shadow">
           <div className="text-2xl font-bold text-green-600">{users.filter(u => (u.role || '').toUpperCase() === 'PLAYER').length}</div>
           <div className="text-sm text-gray-600">Players</div>
-        </div>
-      </div>
+                </div>
+            </div>
 
       {/* Users Table */}
       {filteredUsers.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <p className="text-gray-500">No users found</p>
-        </div>
+                                        </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
@@ -298,7 +298,7 @@ export default function ManageUsers() {
                               Reason: {(user as any).suspendReason}
                             </div>
                           )}
-                        </div>
+            </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {createdAt ? new Date(createdAt).toLocaleDateString() : '-'}
@@ -343,7 +343,7 @@ export default function ManageUsers() {
                             >
                               {isCurrentlyLoading ? '...' : 'Delete'}
                             </button>
-                          </div>
+                            </div>
                         ) : (
                           <span className="text-xs text-gray-400 italic">Current User</span>
                         )}
@@ -353,8 +353,8 @@ export default function ManageUsers() {
                 })}
               </tbody>
             </table>
-          </div>
-        </div>
+                                </div>
+                                </div>
       )}
 
       {/* Suspend Reason Dialog */}
@@ -377,7 +377,7 @@ export default function ManageUsers() {
                 className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 autoFocus
               />
-            </div>
+                                </div>
 
             <div className="flex gap-3 justify-end">
               <button
@@ -397,10 +397,10 @@ export default function ManageUsers() {
               >
                 {actionLoading === suspendDialog.userId ? 'Suspending...' : 'Suspend User'}
               </button>
-            </div>
-          </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
         </div>
-      )}
-    </div>
-  );
+    );
 }

@@ -1,61 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getUserLocation, Coordinates, LocationError } from '@/utils/location';
 
-export interface Location {
-  latitude: number;
-  longitude: number;
+interface UseGeolocationReturn {
+  location: Coordinates | null;
+  error: LocationError | null;
+  loading: boolean;
+  getLocation: () => void;
+  requestLocation: () => void; // Alias for compatibility
+  clearLocation: () => void;
 }
 
-export const useGeolocation = () => {
-  const [location, setLocation] = useState<Location | null>(null);
+/**
+ * Reusable hook for geolocation
+ * @param autoFetch - Automatically fetch location on mount
+ */
+export const useGeolocation = (autoFetch = false): UseGeolocationReturn => {
+  const [location, setLocation] = useState<Coordinates | null>(null);
+  const [error, setError] = useState<LocationError | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const requestLocation = () => {
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser');
-      return;
-    }
-
+  const getLocation = async () => {
     setLoading(true);
     setError(null);
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        });
-        setLoading(false);
-      },
-      (error) => {
-        let errorMessage = 'Unable to get your location';
-        
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = 'Location permission denied. Please enable location access in your browser settings.';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Location information is unavailable.';
-            break;
-          case error.TIMEOUT:
-            errorMessage = 'Location request timed out. Please try again.';
-            break;
-          default:
-            errorMessage = error.message || 'An unknown error occurred.';
-            break;
-        }
-        
-        setError(errorMessage);
-        setLoading(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
+    try {
+      const coords = await getUserLocation();
+      setLocation(coords);
+      
+      // Save to localStorage for later use
+      localStorage.setItem('userLocation', JSON.stringify(coords));
+    } catch (err) {
+      setError(err as LocationError);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return { location, loading, error, requestLocation };
+  const clearLocation = () => {
+    setLocation(null);
+    setError(null);
+    localStorage.removeItem('userLocation');
+  };
+
+  useEffect(() => {
+    if (autoFetch) {
+      // Try to load from localStorage first
+      const saved = localStorage.getItem('userLocation');
+      if (saved) {
+        try {
+          setLocation(JSON.parse(saved));
+        } catch (e) {
+          console.warn('Failed to parse saved location', e);
+          getLocation();
+        }
+      } else {
+        getLocation();
+      }
+    }
+  }, [autoFetch]);
+
+  return { 
+    location, 
+    error, 
+    loading, 
+    getLocation, 
+    requestLocation: getLocation, // Alias for backward compatibility
+    clearLocation 
+  };
 };
 

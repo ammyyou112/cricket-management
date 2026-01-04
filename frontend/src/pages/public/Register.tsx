@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -36,7 +36,7 @@ const registerSchema = z.object({
         .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
         .regex(/[0-9]/, 'Password must contain at least one number'),
     confirm_password: z.string(),
-    role: z.enum(['player', 'captain', 'admin']),
+    role: z.enum(['player', 'captain']),
     player_type: z.enum(['batsman', 'bowler', 'all-rounder', 'wicket-keeper']).optional(),
 }).refine((data) => data.password === data.confirm_password, {
     message: "Passwords do not match",
@@ -57,6 +57,13 @@ const Register = () => {
     const { register: registerUser, user, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const [authError, setAuthError] = useState<string | null>(null);
+    
+    // ✅ Debug: Log error state changes
+    useEffect(() => {
+        if (authError) {
+            console.log('🔴 Error state updated:', authError);
+        }
+    }, [authError]);
 
     const form = useForm<RegisterValues>({
         resolver: zodResolver(registerSchema),
@@ -122,20 +129,49 @@ const Register = () => {
             // Handle validation errors from backend
             let errorMessage = 'Failed to create account. Please try again.';
             
-            if (err.message) {
+            // ✅ Prioritize backend error message (includes test email validation)
+            // Check multiple possible error formats
+            if (err?.message) {
                 errorMessage = err.message;
-            } else if (err.response?.data?.message) {
+            } else if (err?.response?.data?.message) {
                 errorMessage = err.response.data.message;
-            } else if (err.response?.data?.errors) {
+            } else if (err?.response?.data?.error) {
+                errorMessage = err.response.data.error;
+            } else if (err?.error) {
+                errorMessage = err.error;
+            } else if (err?.response?.data?.errors) {
                 // Handle field-specific errors
                 const fieldErrors = Object.values(err.response.data.errors).flat();
                 errorMessage = fieldErrors.join(', ') || errorMessage;
             }
             
-            setAuthError(errorMessage);
-            if (import.meta.env.DEV) {
-                console.error('❌ Registration failed:', errorMessage);
-            }
+            // ✅ Debug logging - Always log to help diagnose
+            console.error('❌ Registration Error Details:', {
+                errorMessage,
+                err,
+                errMessage: err?.message,
+                errResponse: err?.response,
+                errError: err?.error,
+                errString: String(err),
+            });
+            
+            // ✅ Clear any previous errors and set the new one
+            // Ensure we always set an error message, even if extraction failed
+            const finalErrorMessage = errorMessage || String(err) || 'An unexpected error occurred';
+            setAuthError(finalErrorMessage);
+            
+            // ✅ Also log the state update
+            console.log('🔴 Setting authError state to:', finalErrorMessage);
+            
+            // ✅ Force re-render and scroll to error message
+            setTimeout(() => {
+                const errorElement = document.querySelector('[role="alert"]') || 
+                                    document.querySelector('.alert-destructive') ||
+                                    document.querySelector('[data-error="true"]');
+                if (errorElement) {
+                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }, 200);
         }
     };
 
@@ -151,6 +187,23 @@ const Register = () => {
                 <CardContent>
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                            {/* ✅ SIMPLE ERROR MESSAGE - Always visible at top */}
+                            {authError && (
+                                <div className="mb-4 p-4 bg-red-50 border-2 border-red-400 rounded-lg shadow-md">
+                                    <div className="flex items-start gap-3">
+                                        <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                        <div className="flex-1">
+                                            <h4 className="text-red-800 font-bold text-sm mb-1">
+                                                Registration Failed
+                                            </h4>
+                                            <p className="text-red-700 text-sm font-medium">
+                                                {authError}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            
                             {isAuthenticated && user && (
                                 <Alert>
                                     <AlertCircle className="h-4 w-4" />
@@ -162,13 +215,6 @@ const Register = () => {
                                             go to your dashboard
                                         </Link>.
                                     </AlertDescription>
-                                </Alert>
-                            )}
-                            {authError && (
-                                <Alert variant="destructive">
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertTitle>Error</AlertTitle>
-                                    <AlertDescription>{authError}</AlertDescription>
                                 </Alert>
                             )}
 
@@ -260,14 +306,6 @@ const Register = () => {
                                                     </FormControl>
                                                     <FormLabel className="font-normal">
                                                         Captain (Manage team and matches)
-                                                    </FormLabel>
-                                                </FormItem>
-                                                <FormItem className="flex items-center space-x-3 space-y-0">
-                                                    <FormControl>
-                                                        <RadioGroupItem value="admin" />
-                                                    </FormControl>
-                                                    <FormLabel className="font-normal">
-                                                        Admin (Organize tournaments)
                                                     </FormLabel>
                                                 </FormItem>
                                             </RadioGroup>

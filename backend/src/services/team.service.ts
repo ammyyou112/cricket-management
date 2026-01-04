@@ -11,6 +11,9 @@ export interface CreateTeamInput {
   name: string;
   description?: string;
   logoUrl?: string;
+  city?: string;
+  locationLatitude?: number;
+  locationLongitude?: number;
   captainId: string;
 }
 
@@ -72,12 +75,25 @@ export class TeamService {
       throw new ConflictError('Team with this name already exists');
     }
 
+    // Get captain's location if not provided
+    let locationLatitude = input.locationLatitude;
+    let locationLongitude = input.locationLongitude;
+    
+    // If location not provided, use captain's location
+    if (!locationLatitude || !locationLongitude) {
+      locationLatitude = user.locationLatitude ? Number(user.locationLatitude) : undefined;
+      locationLongitude = user.locationLongitude ? Number(user.locationLongitude) : undefined;
+    }
+
     // Create team with captain as first active member
     const team = await prisma.team.create({
       data: {
         teamName: input.name,
         description: input.description,
         logoUrl: input.logoUrl,
+        city: input.city,
+        locationLatitude: locationLatitude,
+        locationLongitude: locationLongitude,
         captainId: input.captainId,
         members: {
           create: {

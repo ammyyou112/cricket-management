@@ -17,7 +17,7 @@ export const registerSchema = z.object({
       .min(2, 'Full name must be at least 2 characters')
       .max(100, 'Full name must not exceed 100 characters'),
     role: z
-      .enum(['PLAYER', 'CAPTAIN', 'ADMIN'])
+      .enum(['PLAYER', 'CAPTAIN'])
       .optional(),
     playerType: z
       .enum(['BATSMAN', 'BOWLER', 'ALL_ROUNDER', 'WICKET_KEEPER'])

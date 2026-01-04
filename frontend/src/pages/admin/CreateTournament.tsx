@@ -135,14 +135,14 @@ export default function CreateTournament() {
       return leagueMatches + playoffMatches;
     }
     return 0;
-  };
+    };
 
-  return (
+    return (
     <div className="container mx-auto p-6 max-w-3xl">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Create Tournament</h1>
         <p className="text-gray-600">Set up a new cricket tournament</p>
-      </div>
+            </div>
 
       <div className="bg-white p-8 rounded-lg shadow">
         <form onSubmit={handleSubmit}>
@@ -317,7 +317,7 @@ export default function CreateTournament() {
                 </div>
               )}
             </div>
-          </div>
+                            </div>
 
           {/* Expected Matches Info */}
           {selectedTeams.length >= 2 && (
@@ -344,7 +344,7 @@ export default function CreateTournament() {
               <option value="COMPLETED">Completed</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
-          </div>
+                            </div>
 
           {/* Buttons */}
           <div className="flex gap-4">
@@ -364,8 +364,8 @@ export default function CreateTournament() {
               {loading ? 'Creating...' : 'Create & Generate Matches'}
             </button>
           </div>
-        </form>
+                        </form>
       </div>
-    </div>
-  );
+        </div>
+    );
 }

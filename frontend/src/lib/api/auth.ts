@@ -256,6 +256,9 @@ export const updateProfile = async (userId: string, data: any) => {
   if (data.city !== undefined) backendData.city = data.city;
   if (data.profilePictureUrl !== undefined) backendData.profilePictureUrl = data.profilePictureUrl;
   if (data.profile_picture !== undefined) backendData.profilePictureUrl = data.profile_picture;
+  // ✅ Location fields
+  if (data.locationLatitude !== undefined) backendData.locationLatitude = data.locationLatitude;
+  if (data.locationLongitude !== undefined) backendData.locationLongitude = data.locationLongitude;
 
   const { data: updatedUser, error } = await apiClient.patch<User>(`/users/${userId}`, backendData);
 

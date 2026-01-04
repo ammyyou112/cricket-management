@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { UserService } from '@/services/user.service';
 import { ResponseUtil } from '@/utils/response';
 import logger from '@/utils/logger';
-import { ForbiddenError } from '@/utils/errors';
+import { ForbiddenError, BadRequestError } from '@/utils/errors';
 
 export class UserController {
   /**
@@ -301,6 +301,54 @@ export class UserController {
       logger.info(`User unsuspended: ${targetUserId}`);
 
       ResponseUtil.success(res, user, 'User unsuspended successfully');
+      return;
+    } catch (error) {
+      next(error);
+      return;
+    }
+  }
+
+  /**
+   * Update user location
+   * PATCH /api/v1/users/location
+   */
+  static async updateLocation(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = (req as any).userId;
+      const { locationLatitude, locationLongitude } = req.body;
+
+      // Validate that coordinates are provided
+      if (locationLatitude === undefined || locationLongitude === undefined) {
+        throw new BadRequestError('Location coordinates are required');
+      }
+
+      // Validate coordinates are numbers
+      if (typeof locationLatitude !== 'number' || typeof locationLongitude !== 'number') {
+        throw new BadRequestError('Coordinates must be numbers');
+      }
+
+      // Validate coordinate ranges
+      if (locationLatitude < -90 || locationLatitude > 90) {
+        throw new BadRequestError('Latitude must be between -90 and 90');
+      }
+
+      if (locationLongitude < -180 || locationLongitude > 180) {
+        throw new BadRequestError('Longitude must be between -180 and 180');
+      }
+
+      const user = await UserService.updateLocation(
+        userId,
+        locationLatitude,
+        locationLongitude
+      );
+
+      logger.info(`User location updated: ${user.email}`);
+
+      ResponseUtil.success(res, user, 'Location updated successfully');
       return;
     } catch (error) {
       next(error);

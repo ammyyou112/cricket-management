@@ -1,4 +1,4 @@
-import { useState, useRef, ChangeEvent } from 'react';
+import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,7 +29,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar'
 import { Badge } from '../../components/ui/badge';
 import { Skeleton } from '../../components/ui/skeleton';
 import { useToast } from '../../components/ui/use-toast';
-import { Loader2, Camera, User as UserIcon, Mail, Phone, Shield, Activity, Trophy, TrendingUp } from 'lucide-react';
+import { Loader2, Camera, User as UserIcon, Mail, Phone, Shield, Activity, Trophy, TrendingUp, MapPin, Navigation, X } from 'lucide-react';
+import { useGeolocation } from '../../hooks/useGeolocation';
+import { getLocationName } from '../../utils/location';
+import AIInsights from '../../components/player/AIInsights';
 
 const PlayerProfile = () => {
     const { user: authUser } = useAuth();
@@ -39,8 +42,11 @@ const PlayerProfile = () => {
 
     const [isEditing, setIsEditing] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [savingLocation, setSavingLocation] = useState(false);
+    const [locationName, setLocationName] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
+    const { location, loading: locationLoading, error: locationError, getLocation, clearLocation } = useGeolocation();
 
     const form = useForm<ProfileFormData>({
         resolver: zodResolver(profileFormSchema),
@@ -51,6 +57,18 @@ const PlayerProfile = () => {
             profile_picture: profile?.profile_picture || '',
         },
     });
+
+    // Update form when profile data changes
+    useEffect(() => {
+        if (profile) {
+            form.reset({
+                full_name: profile.full_name || '',
+                phone: profile.phone || '',
+                player_type: profile.player_type || 'all-rounder',
+                profile_picture: profile.profile_picture || '',
+            });
+        }
+    }, [profile, form]);
 
     if (isLoading || !profile) {
         return (
@@ -64,10 +82,10 @@ const PlayerProfile = () => {
         );
     }
 
-    // Calculate Stats
-    const totalRuns = stats?.reduce((acc, curr) => acc + (curr.runs_scored || 0), 0) || 0;
-    const totalWickets = stats?.reduce((acc, curr) => acc + (curr.wickets_taken || 0), 0) || 0;
-    const totalCatches = stats?.reduce((acc, curr) => acc + (curr.catches || 0), 0) || 0;
+    // Calculate Stats - Handle both camelCase (from API) and snake_case (legacy)
+    const totalRuns = stats?.reduce((acc, curr: any) => acc + (curr.runsScored || curr.runs_scored || 0), 0) || 0;
+    const totalWickets = stats?.reduce((acc, curr: any) => acc + (curr.wicketsTaken || curr.wickets_taken || 0), 0) || 0;
+    const totalCatches = stats?.reduce((acc, curr: any) => acc + (curr.catches || 0), 0) || 0;
     const matchesPlayed = stats?.length || 0;
 
     const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -122,6 +140,45 @@ const PlayerProfile = () => {
         });
     };
 
+    // ✅ SAVE LOCATION TO DATABASE
+    const handleSaveLocation = async () => {
+        if (!location || !authUser) return;
+
+        setSavingLocation(true);
+        try {
+            // Get human-readable location name
+            const name = await getLocationName(location.latitude, location.longitude);
+            setLocationName(name);
+
+            // ✅ SAVE TO BACKEND USING REAL API
+            const { userService } = await import('../../services/user.service');
+            const updatedUser = await userService.updateLocation(location.latitude, location.longitude);
+            
+            // Update local storage
+            const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+            const newUser = {
+                ...currentUser,
+                locationLatitude: updatedUser.locationLatitude,
+                locationLongitude: updatedUser.locationLongitude,
+            };
+            localStorage.setItem('user', JSON.stringify(newUser));
+
+            toast({
+                title: "Location saved",
+                description: "Your location has been saved successfully!",
+            });
+        } catch (error: any) {
+            console.error('Failed to save location:', error);
+            toast({
+                title: "Save failed",
+                description: error.message || "Could not save location. Please try again.",
+                variant: "destructive"
+            });
+        } finally {
+            setSavingLocation(false);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
@@ -165,7 +222,7 @@ const PlayerProfile = () => {
                             />
                         </div>
 
-                        <CardTitle>{profile.full_name}</CardTitle>
+                        <CardTitle>{profile.full_name || profile.email?.split('@')[0] || 'User'}</CardTitle>
                         <CardDescription className="capitalize">{profile.role}</CardDescription>
                         <div className="mt-4 flex flex-wrap gap-2 justify-center">
                             <Badge variant="secondary" className="capitalize">
@@ -251,6 +308,127 @@ const PlayerProfile = () => {
                                         />
                                     )}
 
+                                    {/* Location Section - For Captains */}
+                                    {(authUser?.role === 'CAPTAIN' || authUser?.role === 'captain' || authUser?.role === 'ADMIN' || authUser?.role === 'admin') && (
+                                        <div className="mt-6 p-4 border rounded-lg bg-muted/30">
+                                            <FormLabel className="text-base font-semibold mb-3 block">Location</FormLabel>
+                                            <FormDescription className="mb-3">
+                                                Set your location to help players find teams near them. This will also be used when creating teams.
+                                            </FormDescription>
+                                            
+                                            {!location && !profile?.locationLatitude && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={getLocation}
+                                                    disabled={locationLoading}
+                                                    className="w-full"
+                                                >
+                                                    {locationLoading ? (
+                                                        <>
+                                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                            Getting location...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Navigation className="mr-2 h-4 w-4" />
+                                                            Get My Current Location
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            )}
+
+                                            {location && (
+                                                <div className="space-y-3">
+                                                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                                        <div className="flex items-start justify-between">
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2 text-green-800 mb-1">
+                                                                    <MapPin className="h-4 w-4" />
+                                                                    <span className="text-sm font-medium">Location Detected</span>
+                                                                </div>
+                                                                <p className="text-xs text-green-700">
+                                                                    {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+                                                                </p>
+                                                                {locationName && (
+                                                                    <p className="text-xs text-green-600 mt-1">{locationName}</p>
+                                                                )}
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={clearLocation}
+                                                                className="h-8 w-8 p-0"
+                                                            >
+                                                                <X className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        onClick={handleSaveLocation}
+                                                        disabled={savingLocation}
+                                                        className="w-full"
+                                                    >
+                                                        {savingLocation ? (
+                                                            <>
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                Saving...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <MapPin className="mr-2 h-4 w-4" />
+                                                                Save This Location
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            )}
+
+                                            {profile?.locationLatitude && profile?.locationLongitude && !location && (
+                                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                    <div className="flex items-center gap-2 text-blue-800 mb-1">
+                                                        <MapPin className="h-4 w-4" />
+                                                        <span className="text-sm font-medium">Saved Location</span>
+                                                    </div>
+                                                    <p className="text-xs text-blue-700">
+                                                        {profile.locationLatitude.toFixed(6)}, {profile.locationLongitude.toFixed(6)}
+                                                    </p>
+                                                    {locationName && (
+                                                        <p className="text-xs text-blue-600 mt-1">{locationName}</p>
+                                                    )}
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={getLocation}
+                                                        disabled={locationLoading}
+                                                        className="mt-2 w-full"
+                                                    >
+                                                        {locationLoading ? (
+                                                            <>
+                                                                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                                                Updating...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Navigation className="mr-2 h-3 w-3" />
+                                                                Update Location
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            )}
+
+                                            {locationError && (
+                                                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                                    <p className="text-sm text-red-600">{locationError.message}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <div className="flex justify-end gap-2 mt-6">
                                         <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
                                             Cancel
@@ -269,7 +447,7 @@ const PlayerProfile = () => {
                                         <h4 className="text-sm font-medium leading-none text-muted-foreground">Full Name</h4>
                                         <div className="flex items-center gap-2 text-base">
                                             <UserIcon className="h-4 w-4 opacity-70" />
-                                            {profile.full_name}
+                                            {profile.full_name || profile.email?.split('@')[0] || 'Not provided'}
                                         </div>
                                     </div>
                                     <div className="space-y-1">
@@ -293,6 +471,15 @@ const PlayerProfile = () => {
                                             {profile.phone || 'Not provided'}
                                         </div>
                                     </div>
+                                    {(authUser?.role === 'CAPTAIN' || authUser?.role === 'captain' || authUser?.role === 'ADMIN' || authUser?.role === 'admin') && profile?.locationLatitude && profile?.locationLongitude && (
+                                        <div className="space-y-1">
+                                            <h4 className="text-sm font-medium leading-none text-muted-foreground">Location</h4>
+                                            <div className="flex items-center gap-2 text-base">
+                                                <MapPin className="h-4 w-4 opacity-70" />
+                                                {locationName || `${profile.locationLatitude.toFixed(4)}, ${profile.locationLongitude.toFixed(4)}`}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -340,6 +527,13 @@ const PlayerProfile = () => {
                     )}
                 </CardContent>
             </Card>
+
+            {/* AI Performance Insights - Only for players */}
+            {(authUser?.role === 'player' || authUser?.role === 'PLAYER') && authUser?.id && (
+                <div className="mt-6">
+                    <AIInsights playerId={authUser.id} />
+                </div>
+            )}
         </div>
     );
 };

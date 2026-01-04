@@ -94,32 +94,41 @@ export const useFilteredStats = (
     //   });
     // }
 
-    // Calculate aggregated stats
-    const totalRuns = filteredStats.reduce((sum, s) => sum + (s.runs_scored || 0), 0);
-    const totalWickets = filteredStats.reduce((sum, s) => sum + (s.wickets_taken || 0), 0);
-    const totalCatches = filteredStats.reduce((sum, s) => sum + (s.catches || 0), 0);
+    // Calculate aggregated stats - Handle both camelCase (from API) and snake_case (legacy)
+    const totalRuns = filteredStats.reduce((sum, s: any) => sum + (s.runsScored || s.runs_scored || 0), 0);
+    const totalWickets = filteredStats.reduce((sum, s: any) => sum + (s.wicketsTaken || s.wickets_taken || 0), 0);
+    const totalCatches = filteredStats.reduce((sum, s: any) => sum + (s.catches || 0), 0);
     const matchCount = filteredStats.length;
 
     const battingAverage = matchCount > 0 ? (totalRuns / matchCount).toFixed(2) : '0.00';
     const wicketsPerMatch = matchCount > 0 ? (totalWickets / matchCount).toFixed(2) : '0.00';
 
     const highestScore = filteredStats.reduce(
-      (max, curr) => Math.max(max, curr.runs_scored || 0),
+      (max, curr: any) => Math.max(max, curr.runsScored || curr.runs_scored || 0),
       0
     );
 
     const bestBowling = filteredStats.reduce(
-      (best, curr) => Math.max(best, curr.wickets_taken || 0),
+      (best, curr: any) => Math.max(best, curr.wicketsTaken || curr.wickets_taken || 0),
       0
     );
 
     const fifties = filteredStats.filter(
-      (s) => (s.runs_scored || 0) >= 50 && (s.runs_scored || 0) < 100
+      (s: any) => {
+        const runs = s.runsScored || s.runs_scored || 0;
+        return runs >= 50 && runs < 100;
+      }
     ).length;
 
-    const hundreds = filteredStats.filter((s) => (s.runs_scored || 0) >= 100).length;
+    const hundreds = filteredStats.filter((s: any) => {
+      const runs = s.runsScored || s.runs_scored || 0;
+      return runs >= 100;
+    }).length;
 
-    const threePlusWickets = filteredStats.filter((s) => (s.wickets_taken || 0) >= 3).length;
+    const threePlusWickets = filteredStats.filter((s: any) => {
+      const wickets = s.wicketsTaken || s.wickets_taken || 0;
+      return wickets >= 3;
+    }).length;
 
     return {
       filteredStats,

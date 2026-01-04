@@ -6,6 +6,7 @@ import {
   UnauthorizedError,
   NotFoundError,
   BadRequestError,
+  ForbiddenError,
 } from '@/utils/errors';
 import { User, UserRole } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -36,6 +37,30 @@ export class AuthService {
    * Register a new user
    */
   static async register(input: RegisterInput): Promise<AuthResponse> {
+    // ✅ BLOCK test/fake emails for NEW registrations only
+    const emailLower = input.email.toLowerCase();
+    
+    // Check for test email patterns
+    const testEmailPatterns = [
+      /^test\d*@/i,        // test@, test1@, test123@
+      /^fake\d*@/i,        // fake@, fake1@
+      /^temp\d*@/i,        // temp@, temp1@
+      /^dummy\d*@/i,       // dummy@, dummy1@
+      /^sample\d*@/i,      // sample@
+      /@test\./i,          // @test.com, @test.org
+      /@example\./i,       // @example.com
+      /@fake\./i,          // @fake.com
+      /@temp\./i,          // @temp.com
+    ];
+    
+    const isTestEmail = testEmailPatterns.some(pattern => pattern.test(input.email));
+    
+    if (isTestEmail) {
+      throw new BadRequestError(
+        'Test email addresses are not allowed for new registrations. Please use your real email address (Gmail, Outlook, Yahoo, etc.).'
+      );
+    }
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: input.email },
@@ -48,9 +73,19 @@ export class AuthService {
     // Hash password
     const hashedPassword = await PasswordUtil.hash(input.password);
 
+    // SECURITY: Prevent ADMIN role registration via public endpoint
+    if (input.role === UserRole.ADMIN) {
+      throw new ForbiddenError('Admin accounts cannot be created through registration. Please contact an existing administrator.');
+    }
+
     // Determine role - use input role if provided, otherwise default to PLAYER
-    // Only allow ADMIN role to be set by existing admins (for security)
+    // Only allow PLAYER and CAPTAIN roles through public registration
     const userRole = input.role || UserRole.PLAYER;
+    
+    // Ensure only valid roles (PLAYER or CAPTAIN) are allowed
+    if (userRole !== UserRole.PLAYER && userRole !== UserRole.CAPTAIN) {
+      throw new BadRequestError('Invalid role. Only PLAYER and CAPTAIN roles can be registered.');
+    }
     
     // Create user
     const user = await prisma.user.create({

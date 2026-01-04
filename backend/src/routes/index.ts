@@ -12,6 +12,7 @@ import tournamentRoutes from './tournament.routes';
 import matchRoutes from './match.routes';
 import uploadRoutes from './upload.routes';
 import socketRoutes from './socket.routes';
+import aiRoutes from './ai.routes';
 
 const router = Router();
 
@@ -30,6 +31,7 @@ router.get('/', (req, res) => {
       matches: `${APP_CONFIG.API_PREFIX}/matches`,
       upload: `${APP_CONFIG.API_PREFIX}/upload`,
       socket: `${APP_CONFIG.API_PREFIX}/socket`,
+      ai: `${APP_CONFIG.API_PREFIX}/ai`,
     },
   });
 });
@@ -42,6 +44,7 @@ router.use('/tournaments', tournamentRoutes);
 router.use('/matches', matchRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/socket', socketRoutes);
+router.use('/ai', aiRoutes);
 
 export default router;
 

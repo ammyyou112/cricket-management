@@ -50,6 +50,8 @@ export interface User {
   profilePictureUrl?: string;
   phone?: string;
   city?: string;
+  locationLatitude?: number; // ✅ Added for location-based features
+  locationLongitude?: number; // ✅ Added for location-based features
   createdAt: string;
   updatedAt: string;
 }
@@ -169,7 +171,10 @@ export interface PlayerStat {
 export interface CreateTeamInput {
   name: string;
   description?: string;
+  city?: string;
   logoUrl?: string;
+  locationLatitude?: number;
+  locationLongitude?: number;
 }
 
 export interface UpdateTeamInput {
@@ -179,12 +184,13 @@ export interface UpdateTeamInput {
 }
 
 export interface CreateMatchInput {
-  tournamentId: string;
+  tournamentId?: string;
   teamAId: string;
   teamBId: string;
   venue: string;
   matchDate: string;
   matchType: MatchType;
+  status: MatchStatus; // ✅ REQUIRED - Backend validation requires this field
 }
 
 export interface UpdateMatchScoreInput {

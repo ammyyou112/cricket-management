@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { UserController } from '@/controllers/user.controller';
+import { StatsController } from '@/controllers/stats.controller';
 import { validate } from '@/middleware/validation.middleware';
 import { authenticate, authorize } from '@/middleware/auth.middleware';
 import {
@@ -32,6 +33,13 @@ router.put(
   validate(changePasswordSchema),
   UserController.changePassword
 );
+
+// Update own location
+router.patch('/location', UserController.updateLocation);
+
+// Player statistics routes (must be before /:id route)
+router.get('/:playerId/stats/summary', StatsController.getPlayerStatsSummary);
+router.get('/:playerId/stats', StatsController.getPlayerStats);
 
 // Get user by ID
 router.get(

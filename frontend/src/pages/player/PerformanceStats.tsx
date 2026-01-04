@@ -42,11 +42,14 @@ const PerformanceStats = () => {
 
         const headers = ['Match Date', 'Runs', 'Wickets', 'Catches', 'Venue'];
         const rows = filteredStats.map(stat => {
-            const match = (stat as any).matches;
+            const match = (stat as any).match || (stat as any).matches;
+            const runs = (stat as any).runsScored || (stat as any).runs_scored || 0;
+            const wickets = (stat as any).wicketsTaken || (stat as any).wickets_taken || 0;
             return [
+                match?.matchDate ? new Date(match.matchDate).toLocaleDateString() : 
                 match?.match_date ? new Date(match.match_date).toLocaleDateString() : 'N/A',
-                stat.runs_scored || 0,
-                stat.wickets_taken || 0,
+                runs,
+                wickets,
                 stat.catches || 0,
                 match?.venue || 'N/A'
             ];
@@ -88,11 +91,11 @@ const PerformanceStats = () => {
         threePlusWickets
     } = aggregates;
 
-    // Chart Data from filtered stats
-    const chartData = filteredStats.map((s, i) => ({
+    // Chart Data from filtered stats - Handle both camelCase and snake_case
+    const chartData = filteredStats.map((s: any, i) => ({
         name: `M${i + 1}`,
-        runs: s.runs_scored || 0,
-        wickets: s.wickets_taken || 0,
+        runs: s.runsScored || s.runs_scored || 0,
+        wickets: s.wicketsTaken || s.wickets_taken || 0,
     }));
 
     return (

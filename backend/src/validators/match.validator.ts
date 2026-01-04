@@ -2,12 +2,13 @@ import { z } from 'zod';
 
 export const createMatchSchema = z.object({
   body: z.object({
-    tournamentId: z.string().uuid('Invalid tournament ID format'),
+    tournamentId: z.string().uuid('Invalid tournament ID format').optional(), // ✅ Made optional
     teamAId: z.string().uuid('Invalid team ID format'),
     teamBId: z.string().uuid('Invalid team ID format'),
     venue: z.string().min(3, 'Venue must be at least 3 characters').max(200),
     matchDate: z.string().datetime('Invalid match date format'),
     matchType: z.enum(['LEAGUE', 'KNOCKOUT', 'FRIENDLY']),
+    status: z.enum(['SCHEDULED', 'LIVE', 'COMPLETED', 'CANCELLED']).optional(), // ✅ Added status field (optional, backend sets default)
   }),
 });
 

@@ -140,5 +140,25 @@ export const userService = {
 
     return data;
   },
+
+  /**
+   * Update user location
+   */
+  updateLocation: async (locationLatitude: number, locationLongitude: number): Promise<User> => {
+    const { data, error } = await apiClient.patch<User>('/users/location', {
+      locationLatitude,
+      locationLongitude,
+    });
+    
+    if (error) {
+      throw new Error(error);
+    }
+
+    if (!data) {
+      throw new Error('Failed to update location');
+    }
+
+    return data;
+  },
 };
 

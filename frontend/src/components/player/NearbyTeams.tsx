@@ -117,8 +117,8 @@ export const NearbyTeams = ({
               <Card key={team.id} className="flex flex-col hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-start gap-4 space-y-0">
                   <Avatar className="h-12 w-12 border">
-                    <AvatarImage src={team.logo_url || undefined} alt={team.team_name} />
-                    <AvatarFallback>{team.team_name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarImage src={team.logo_url || undefined} alt={team.team_name || 'Team'} />
+                    <AvatarFallback>{(team.team_name || 'TM').substring(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div className="space-y-1 flex-1">
                     <div className="flex items-start justify-between gap-2">
@@ -137,6 +137,12 @@ export const NearbyTeams = ({
                   <p className="text-sm text-muted-foreground line-clamp-2">
                     {team.description || "No description provided."}
                   </p>
+                  {team.description && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      <span className="line-clamp-1">{team.description}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Users className="h-4 w-4" />
                     <span>Members: --</span>

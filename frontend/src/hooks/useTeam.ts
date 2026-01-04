@@ -7,14 +7,12 @@ export const useMyTeams = (playerId?: string) => {
     return useQuery({
         queryKey: ['myTeams', playerId],
         queryFn: async () => {
-            if (!playerId) throw new Error('Player ID required');
-            const result = await teamApi.getMyTeams(playerId);
-            if (result.error) {
-                throw new Error(result.error);
-            }
-            return result.data || [];
+            // ✅ FIXED: Use teamService.getMyTeams() which uses correct endpoint /teams/my-teams
+            const { teamService } = await import('../services/team.service');
+            const teams = await teamService.getMyTeams();
+            return Array.isArray(teams) ? teams : (teams.data || []);
         },
-        enabled: !!playerId,
+        enabled: true, // No longer requires playerId since endpoint uses auth token
     });
 };
 

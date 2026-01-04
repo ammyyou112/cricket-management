@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { teamService } from '../../services/team.service';
+import { userService } from '../../services/user.service';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { useToast } from '../../components/ui/use-toast';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, MapPin, CheckCircle } from 'lucide-react';
+import { getLocationName } from '../../utils/location';
 
 export default function CreateTeam() {
   const navigate = useNavigate();
@@ -15,11 +17,46 @@ export default function CreateTeam() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captainLocation, setCaptainLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationName, setLocationName] = useState<string>('');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     city: '',
   });
+
+  // Load captain's location on mount
+  useEffect(() => {
+    const loadCaptainLocation = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const captainData = await userService.getById(user.id);
+        if (captainData.locationLatitude && captainData.locationLongitude) {
+          setCaptainLocation({
+            latitude: captainData.locationLatitude,
+            longitude: captainData.locationLongitude,
+          });
+          
+          // Get location name
+          const name = await getLocationName(captainData.locationLatitude, captainData.locationLongitude);
+          setLocationName(name);
+          
+          // Auto-fill city from location name (extract city from address)
+          if (!formData.city && name) {
+            const cityMatch = name.match(/([^,]+),/); // Get first part before comma
+            if (cityMatch) {
+              setFormData(prev => ({ ...prev, city: cityMatch[1].trim() }));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load captain location:', err);
+      }
+    };
+
+    loadCaptainLocation();
+  }, [user?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,10 +82,16 @@ export default function CreateTeam() {
       
       console.log('🔵 Creating team:', formData);
       
+      // ✅ GET CAPTAIN'S LOCATION FROM USER DATA
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      
       const newTeam = await teamService.create({
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
         city: formData.city.trim(),
+        // ✅ SEND CAPTAIN'S LOCATION TO BACKEND
+        locationLatitude: currentUser.locationLatitude,
+        locationLongitude: currentUser.locationLongitude,
       });
       
       console.log('✅ Team created successfully:', newTeam);
@@ -156,6 +199,23 @@ export default function CreateTeam() {
               <p className="text-xs text-gray-500 mt-1">
                 City where your team is based
               </p>
+              
+              {/* Location Auto-fill Message */}
+              {captainLocation && (
+                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-green-800 font-medium">
+                        Using your saved location
+                      </p>
+                      <p className="text-xs text-green-700 mt-1">
+                        {locationName || `${captainLocation.latitude.toFixed(4)}, ${captainLocation.longitude.toFixed(4)}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Team Description */}

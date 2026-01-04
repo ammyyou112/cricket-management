@@ -3,7 +3,7 @@ import cors from 'cors';
 const allowedOrigins = [
   'http://localhost:5173',  // Vite default
   'http://localhost:8080',  // Current frontend port
-  'http://localhost:3000',  // Backend itself
+  'http://localhost:3000',  // Backend port
   process.env.FRONTEND_URL,
   ...(process.env.ALLOWED_ORIGINS?.split(',') || []),
 ].filter(Boolean) as string[];

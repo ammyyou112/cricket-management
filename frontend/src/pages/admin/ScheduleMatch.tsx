@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { matchService } from '@/services/match.service';
 import { teamService } from '@/services/team.service';
 import { tournamentService } from '@/services/tournament.service';
-import type { Team, Tournament } from '@/types/api.types';
+import type { Team, Tournament, CreateMatchInput } from '@/types/api.types';
 
 export default function ScheduleMatch() {
   const navigate = useNavigate();
@@ -78,20 +78,18 @@ export default function ScheduleMatch() {
         venue: formData.venue.trim(),
         matchDate: matchDateTime,
         matchType: formData.matchType,
+        status: formData.status, // ✅ Added status to log
       });
 
-      const matchData: any = {
+      const matchData: CreateMatchInput = {
         teamAId: formData.teamAId,
         teamBId: formData.teamBId,
         venue: formData.venue.trim(),
         matchDate: matchDateTime,
         matchType: formData.matchType,
+        status: formData.status, // ✅ CRITICAL FIX - Added required status field
+        ...(formData.tournamentId && { tournamentId: formData.tournamentId }), // Only include if provided
       };
-      
-      // Only include tournamentId if provided
-      if (formData.tournamentId) {
-        matchData.tournamentId = formData.tournamentId;
-      }
 
       const newMatch = await matchService.create(matchData);
 

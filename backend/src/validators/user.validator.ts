@@ -8,10 +8,19 @@ export const updateProfileSchema = z.object({
       .optional(),
     phone: z
       .string()
-      .regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format')
-      .optional(),
-    city: z.string().min(2).max(100).optional(),
-    profilePictureUrl: z.string().url().optional(),
+      .optional()
+      .nullable()
+      .refine((val) => !val || val === '' || /^\+?[1-9]\d{1,14}$/.test(val), {
+        message: 'Invalid phone number format',
+      }),
+    city: z.string().min(2).max(100).optional().nullable(),
+    profilePictureUrl: z
+      .string()
+      .optional()
+      .nullable()
+      .refine((val) => !val || val === '' || z.string().url().safeParse(val).success, {
+        message: 'Invalid URL format',
+      }),
     locationLatitude: z.number().min(-90).max(90).optional(),
     locationLongitude: z.number().min(-180).max(180).optional(),
   }),

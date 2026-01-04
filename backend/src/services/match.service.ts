@@ -13,12 +13,13 @@ import {
 } from '@/sockets/socket';
 
 export interface CreateMatchInput {
-  tournamentId: string;
+  tournamentId?: string; // ✅ Made optional
   teamAId: string;
   teamBId: string;
   venue: string;
   matchDate: string;
   matchType: 'LEAGUE' | 'KNOCKOUT' | 'FRIENDLY';
+  status?: MatchStatus; // ✅ Added optional status field
 }
 
 export interface UpdateMatchInput {
@@ -78,13 +79,15 @@ export class MatchService {
    * Create a new match
    */
   static async createMatch(input: CreateMatchInput): Promise<Match> {
-    // Validate tournament exists
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: input.tournamentId },
-    });
+    // Validate tournament exists (if provided)
+    if (input.tournamentId) {
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: input.tournamentId },
+      });
 
-    if (!tournament) {
-      throw new NotFoundError('Tournament not found');
+      if (!tournament) {
+        throw new NotFoundError('Tournament not found');
+      }
     }
 
     // Validate teams exist
@@ -107,13 +110,13 @@ export class MatchService {
 
     const match = await prisma.match.create({
       data: {
-        tournamentId: input.tournamentId,
+        ...(input.tournamentId && { tournamentId: input.tournamentId }), // Only include if provided
         teamAId: input.teamAId,
         teamBId: input.teamBId,
         venue: input.venue,
         matchDate: new Date(input.matchDate),
         matchType: input.matchType as MatchType,
-        status: MatchStatus.SCHEDULED,
+        status: input.status || MatchStatus.SCHEDULED, // ✅ Use provided status or default to SCHEDULED
       },
       include: {
         teamA: {
@@ -139,8 +142,10 @@ export class MatchService {
       },
     });
 
-    // Emit Socket.io event for new match
-    emitMatchCreated(input.tournamentId, match);
+    // Emit Socket.io event for new match (only if tournament exists)
+    if (input.tournamentId) {
+      emitMatchCreated(input.tournamentId, match);
+    }
 
     return match;
   }
