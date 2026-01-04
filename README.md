@@ -39,6 +39,7 @@ This Cricket Management System provides a complete solution for organizing and m
 - **Helmet** - Security middleware
 - **CORS** - Cross-origin resource sharing
 - **express-rate-limit** - Rate limiting
+- **Google Gemini AI** - AI-powered performance analytics
 
 ### Database
 - **PostgreSQL** - Primary database (via Supabase)
@@ -49,6 +50,27 @@ This Cricket Management System provides a complete solution for organizing and m
 - **PostCSS** - CSS processing
 - **Autoprefixer** - CSS vendor prefixing
 
+## 🆕 Latest Developments
+
+### AI Performance Analytics (January 2025)
+- **Google Gemini Integration** - AI-powered player performance analysis
+- **Auto-Detection** - Automatically detects available Gemini models
+- **Intelligent Fallback** - Provides data-driven analysis when AI is unavailable
+- **Randomized Insights** - Unique, varied suggestions on each refresh
+- **Trend Analysis** - Automatic detection of performance trends (Improving/Declining/Stable)
+- **Personalized Recommendations** - Context-aware suggestions based on player type and match history
+
+### Enhanced Registration System
+- **Test Email Validation** - Blocks test/fake email patterns during new registrations
+- **Backward Compatibility** - Existing test users can continue logging in
+- **Improved Error Display** - Clear, visible error messages on registration form
+- **Better UX** - Auto-scroll to errors and enhanced error styling
+
+### Configuration Improvements
+- **Port Standardization** - Unified port configuration (3000) across frontend and backend
+- **CORS Updates** - Improved cross-origin resource sharing configuration
+- **Error Handling** - Enhanced error extraction and display throughout the application
+
 ## ✨ Features
 
 ### 🔐 Authentication & User Management
@@ -56,6 +78,9 @@ This Cricket Management System provides a complete solution for organizing and m
 #### User Registration & Login
 - **Email/Password Authentication** - Secure user authentication via JWT tokens
 - **Role Selection** - Users can register as Player or Team Admin (Captain)
+- **Test Email Validation** - Blocks test/fake email addresses during registration
+- **Existing User Support** - Existing test users can continue logging in
+- **Clear Error Messages** - User-friendly error display on registration form
 - **Profile Creation** - Automatic profile creation upon registration
 - **Profile Picture Upload** - Upload and manage profile pictures via backend API (Supabase Storage)
 - **Session Management** - JWT-based authentication with refresh tokens
@@ -95,6 +120,15 @@ This Cricket Management System provides a complete solution for organizing and m
   - Match-by-match performance
   - Aggregated statistics
 - **Recent Form** - Last N matches performance analysis
+
+#### AI Performance Analytics 🤖
+- **AI-Powered Insights** - Get personalized performance analysis using Google Gemini AI
+- **Performance Trends** - Automatic trend detection (Improving, Declining, Stable)
+- **Personalized Recommendations** - AI-generated suggestions based on match history
+- **Smart Fallback** - Intelligent analysis even when AI is unavailable
+- **Varied Insights** - Unique, randomized suggestions on each refresh
+- **Minimum Match Requirement** - Analysis available after 3+ matches played
+- **Motivational Messages** - Encouraging messages for players with fewer matches
 
 ### 👨‍✈️ Captain Features
 
@@ -264,6 +298,7 @@ cricket-management/
 │   │   │   └── validation.middleware.ts # Request validation
 │   │   ├── routes/      # API routes
 │   │   │   ├── index.ts              # Main router
+│   │   │   ├── ai.routes.ts          # AI analytics routes
 │   │   │   ├── auth.routes.ts
 │   │   │   ├── matches.routes.ts
 │   │   │   ├── stats.routes.ts
@@ -272,6 +307,7 @@ cricket-management/
 │   │   │   ├── upload.routes.ts
 │   │   │   └── users.routes.ts
 │   │   ├── services/    # Business logic
+│   │   │   ├── ai.service.ts          # AI performance analytics service
 │   │   │   ├── auth.service.ts
 │   │   │   ├── email.service.ts
 │   │   │   ├── matches.service.ts
@@ -446,6 +482,12 @@ Authorization: Bearer <token>
 - `GET /stats/teams/:id` - Get team statistics
 - `GET /stats/tournaments/:id` - Get tournament statistics
 - `GET /stats/leaderboard` - Get leaderboard data
+
+#### AI Analytics Routes (`/api/v1/ai`)
+- `GET /ai/player-analysis/:playerId` - Get AI-powered performance analysis
+  - Requires minimum 3 matches played
+  - Returns trend, summary, and personalized suggestions
+  - Uses Google Gemini AI with intelligent fallback
 
 #### Upload Routes (`/api/v1/upload`)
 - `POST /upload/profile` - Upload profile picture
@@ -1117,6 +1159,11 @@ Required in `backend/.env` file:
 
 **Database:**
 - `DATABASE_URL` - PostgreSQL connection string from Supabase
+
+**AI Analytics:**
+- `GEMINI_API_KEY` - Google Gemini API key for AI performance analytics (optional)
+  - If not provided, system uses intelligent fallback analysis
+  - Get your API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 **Authentication:**
 - `JWT_SECRET` - Secret key for JWT tokens
