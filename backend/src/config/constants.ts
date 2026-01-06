@@ -4,7 +4,7 @@
 
 export const APP_CONFIG = {
   PORT: process.env.PORT || 3000,
-  HOST: process.env.HOST || 'localhost',
+  HOST: process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost'),
   NODE_ENV: process.env.NODE_ENV || 'development',
   API_PREFIX: process.env.API_PREFIX || '/api/v1',
 };

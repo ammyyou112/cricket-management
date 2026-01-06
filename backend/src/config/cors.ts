@@ -5,6 +5,8 @@ const allowedOrigins = [
   'http://localhost:8080',  // Current frontend port
   'http://localhost:3000',  // Backend port
   process.env.FRONTEND_URL,
+  // ✅ Add Vercel preview URLs support
+  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
   ...(process.env.ALLOWED_ORIGINS?.split(',') || []),
 ].filter(Boolean) as string[];
 
@@ -12,6 +14,11 @@ export const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) {
+      return callback(null, true);
+    }
+    
+    // ✅ Allow Vercel preview URLs (e.g., https://your-app-abc123.vercel.app)
+    if (origin.includes('.vercel.app')) {
       return callback(null, true);
     }
     
