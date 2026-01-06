@@ -9,5 +9,5 @@ cmds = [
 ]
 
 [start]
-cmd = "npm start"
+cmd = "node start.js"
 
