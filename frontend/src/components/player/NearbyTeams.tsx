@@ -92,7 +92,7 @@ export const NearbyTeams = ({
       {error && (
         <Alert variant="destructive">
           <AlertDescription>
-            {error}
+            {error.message || 'Failed to get your location. Please try again.'}
           </AlertDescription>
         </Alert>
       )}
