@@ -47,7 +47,7 @@ const AdminDashboard = () => {
                 // Handle paginated responses - backend returns { data: [...], pagination: {...} }
                 // apiClient extracts responseData.data, which for paginated responses is the array
                 // But we need to check if it's a full PaginatedResponse object or just the array
-                const extractData = <T>(response: any): T[] => {
+                const extractData = <T,>(response: any): T[] => {
                     if (Array.isArray(response)) {
                         return response;
                     }
