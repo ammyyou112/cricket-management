@@ -67,11 +67,8 @@ class AIService {
       
       // Handle response data - apiClient returns { success: true, data: {...}, message: "..." }
       if (data) {
-        console.log('📦 Raw response data:', JSON.stringify(data, null, 2));
-        
         // Check if data has success and data properties (wrapped response)
         if ((data as any).success && (data as any).data) {
-          console.log('✅ AI insights loaded successfully:', (data as any).data);
           return {
             success: true,
             data: (data as any).data,
@@ -80,7 +77,6 @@ class AIService {
         
         // Check if data is already the PerformanceAnalysis object (unwrapped)
         if ((data as any).playerName && (data as any).trend) {
-          console.log('✅ AI insights loaded (direct format):', data);
           return {
             success: true,
             data: data as PerformanceAnalysis,
@@ -89,7 +85,6 @@ class AIService {
         
         // Check if response has matchesPlayed (not enough matches case)
         if ((data as any).matchesPlayed !== undefined) {
-          console.log('⚠️ Not enough matches:', (data as any).matchesPlayed);
           return {
             success: false,
             error: (data as any).message || 'Not enough matches',
@@ -99,13 +94,11 @@ class AIService {
         }
       }
       
-      console.error('❌ Unexpected response format:', data);
       return {
         success: false,
         error: 'No data received from server or unexpected format',
       };
     } catch (error: any) {
-      console.error('❌ Failed to get player analysis:', error);
       return {
         success: false,
         error: error.message || 'Failed to load AI insights',

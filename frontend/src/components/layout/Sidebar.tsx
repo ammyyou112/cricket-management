@@ -39,11 +39,15 @@ export const Sidebar = ({ className }: SidebarProps) => {
             case 'captain':
                 return [
                     { name: 'Dashboard', path: '/captain/dashboard', icon: LayoutDashboard },
+                    { name: 'My Stats', path: '/captain/profile', icon: User },
                     { name: 'Team Management', path: '/captain/team-management', icon: Shield },
                     { name: 'Requests', path: '/captain/requests', icon: ClipboardList },
                     { name: 'Invite Players', path: '/captain/invite', icon: Users },
+                    { name: 'Schedule Match', path: '/captain/schedule-match', icon: Calendar },
                     { name: 'Team Matches', path: '/captain/matches', icon: Calendar },
                     { name: 'Match Control', path: '/captain/match-control', icon: Activity },
+                    { name: 'Score Verification', path: '/captain/score-verification', icon: ClipboardList },
+                    { name: 'Approval Requests', path: '/captain/approval-requests', icon: Mail },
                     { name: 'Stats', path: '/captain/stats', icon: BarChart2 },
                 ];
             case 'admin':

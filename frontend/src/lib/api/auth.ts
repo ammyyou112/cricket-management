@@ -12,22 +12,9 @@ const MOCK_MODE = false;
  * @param data Registration data including email, password, name, role, etc.
  * @returns The created user profile with role or throws an error.
  */
-// Only log in development mode
-const isDev = import.meta.env.DEV;
-const log = (...args: any[]) => {
-  if (isDev) {
-    console.log(...args);
-  }
-};
-const logError = (...args: any[]) => {
-  if (isDev) {
-    console.error(...args);
-  }
-};
+// Logging removed for production
 
 export const signUp = async (data: RegisterData & { playerType?: string }) => {
-  log('🔵 authApi.signUp() called');
-  
   if (MOCK_MODE) {
     await delay(500);
     const mockUser = getMockUserByRole(data.role);
@@ -44,24 +31,25 @@ export const signUp = async (data: RegisterData & { playerType?: string }) => {
     playerType: data.playerType?.toUpperCase().replace('-', '_'),
   };
 
-  log('🔵 Sending registration request to /auth/register');
-
   const { data: response, error } = await apiClient.post<{ user: User; accessToken: string; refreshToken: string }>('/auth/register', backendData);
   
   if (error) {
-    logError('❌ Registration error:', error);
-    // Create error with detailed message
+    // Create error with detailed message that can be extracted by Register component
     const errorObj = new Error(error);
-    (errorObj as any).response = { data: { message: error } };
+    // Set multiple error properties for compatibility with different error handling patterns
+    (errorObj as any).message = error;
+    (errorObj as any).response = { 
+      data: { 
+        message: error,
+        error: error 
+      } 
+    };
     throw errorObj;
   }
   
   if (!response || !response.user) {
-    logError('❌ Invalid response structure');
     throw new Error('User creation failed');
   }
-
-  log('✅ Registration successful, storing tokens');
 
   // Store tokens
   if (response.accessToken) {
@@ -97,24 +85,29 @@ export const signIn = async ({ email, password }: LoginCredentials) => {
     return mockUser;
   }
 
-  log('🔵 Signing in user');
-
   const { data: response, error } = await apiClient.post<{ user: User; accessToken: string; refreshToken: string }>('/auth/login', {
     email,
     password, // Never log passwords
   });
 
   if (error) {
-    logError('❌ Login error:', error);
-    throw new Error(error);
+    // Create error with detailed message that can be extracted by Login component
+    const errorObj = new Error(error);
+    // Ensure message is set correctly
+    errorObj.message = error;
+    // Set response object for compatibility
+    (errorObj as any).response = { 
+      data: { 
+        message: error,
+        error: error 
+      } 
+    };
+    throw errorObj;
   }
 
   if (!response || !response.user) {
-    logError('❌ Invalid response structure');
     throw new Error('Authentication failed');
   }
-
-  log('✅ Login successful, storing tokens');
 
   // Store tokens
   if (response.accessToken) {
@@ -146,14 +139,7 @@ export const signOut = async () => {
       const { error } = await apiClient.post('/auth/logout', {
         refreshToken,
       });
-      
-      if (error) {
-        logError('Logout error:', error);
-      } else {
-        log('✅ Logout successful on backend');
-      }
     } catch (err) {
-      logError('Logout API call failed:', err);
       // Continue with local cleanup even if API call fails
     }
   }
@@ -177,7 +163,6 @@ export const getCurrentUser = async (): Promise<User | null> => {
   const { data: user, error } = await apiClient.get<User>('/auth/me');
 
   if (error) {
-    logError('Error fetching user profile:', error);
     return null;
   }
 
@@ -291,12 +276,10 @@ export const uploadTeamLogo = async (teamId: string, file: File): Promise<string
   );
 
   if (error) {
-    logError('❌ Upload team logo error:', error);
     throw new Error(error);
   }
 
   if (!response || !response.url) {
-    logError('❌ Invalid upload response structure');
     throw new Error('Upload failed');
   }
 
@@ -316,7 +299,6 @@ export const deleteTeamLogo = async (teamId: string): Promise<void> => {
   const { error } = await apiClient.delete(`/upload/team/${teamId}`);
 
   if (error) {
-    logError('❌ Delete team logo error:', error);
     throw new Error(error);
   }
 };
@@ -338,7 +320,6 @@ export const changePassword = async (currentPassword: string, newPassword: strin
   });
 
   if (error) {
-    logError('❌ Change password error:', error);
     throw new Error(error);
   }
 };
@@ -359,7 +340,6 @@ export const forgotPassword = async (email: string): Promise<{ message: string; 
   });
 
   if (error) {
-    logError('❌ Forgot password error:', error);
     throw new Error(error);
   }
 
@@ -387,7 +367,6 @@ export const resetPassword = async (token: string, newPassword: string): Promise
   });
 
   if (error) {
-    logError('❌ Reset password error:', error);
     throw new Error(error);
   }
 };

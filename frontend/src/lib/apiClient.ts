@@ -8,24 +8,7 @@ import { TokenUtils } from '@/utils/token.utils';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const API_PREFIX = '/api/v1';
 
-// Only log in development mode
-const isDev = import.meta.env.DEV;
-const log = (...args: any[]) => {
-  if (isDev) {
-    console.log(...args);
-  }
-};
-const logError = (...args: any[]) => {
-  if (isDev) {
-    console.error(...args);
-  }
-};
-
-// Log API configuration on initialization (dev only)
-log('🔧 API Client initialized with:', {
-  baseURL: `${API_BASE_URL}${API_PREFIX}`,
-  envVar: import.meta.env.VITE_API_BASE_URL || 'using default',
-});
+// Logging removed for production
 
 interface ApiError {
   message: string;
@@ -55,24 +38,6 @@ class ApiClient {
       const token = TokenUtils.getAccessToken();
       const fullUrl = `${this.baseURL}${API_PREFIX}${endpoint}`;
       
-      log(`🌐 API Request: ${options.method || 'GET'} ${fullUrl}`);
-      
-      // Parse and sanitize request body for logging (remove sensitive data)
-      if (options.body) {
-        try {
-          const bodyObj = JSON.parse(options.body as string);
-          const sanitizedBody = { ...bodyObj };
-          // Remove sensitive fields from logs
-          if (sanitizedBody.password) sanitizedBody.password = '[REDACTED]';
-          if (sanitizedBody.token) sanitizedBody.token = '[REDACTED]';
-          if (sanitizedBody.refreshToken) sanitizedBody.refreshToken = '[REDACTED]';
-          log('📤 Request body:', sanitizedBody);
-        } catch {
-          // Not JSON, log as-is but be careful
-          log('📤 Request body: [non-JSON]');
-        }
-      }
-      
       const response = await fetch(fullUrl, {
         ...options,
         headers: {
@@ -81,30 +46,23 @@ class ApiClient {
           ...options.headers,
         },
       });
-      
-      log(`📥 Response status: ${response.status} ${response.statusText}`);
 
       // Handle 401 Unauthorized
       if (response.status === 401) {
         // For login/register endpoints, 401 means invalid credentials - don't redirect
         const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/register');
         
-        log(`🔍 401 on endpoint: ${endpoint}, isAuthEndpoint: ${isAuthEndpoint}`);
-        
         // Try to extract error message from response
         let errorMessage = 'Invalid email or password';
         try {
           const errorData: ApiResponse<any> = await response.json();
           errorMessage = errorData.message || errorData.error || errorMessage;
-          logError('❌ 401 Error from backend:', errorMessage);
         } catch (e) {
           // Response might not be JSON, use default message
-          logError('❌ 401 Error: Could not parse response', e);
         }
         
         if (!isAuthEndpoint) {
           // For protected endpoints, clear tokens and redirect
-          log('🔒 Protected endpoint - clearing auth and redirecting');
           TokenUtils.clearAuth();
           if (window.location.pathname !== '/login') {
             window.location.href = '/login';
@@ -116,7 +74,6 @@ class ApiClient {
         }
         
         // For login/register, return the actual error message
-        log(`🔐 Auth endpoint - returning error: ${errorMessage}`);
         return {
           data: null,
           error: errorMessage,
@@ -129,28 +86,19 @@ class ApiClient {
           message: 'Request failed' 
         }));
         
-        logError('❌ API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          message: errorData.message,
-        });
-        
         // Handle validation errors (422) - extract detailed error messages
         if (response.status === 422 && errorData.errors) {
           const errorMessages: string[] = [];
           Object.entries(errorData.errors).forEach(([field, messages]) => {
             if (Array.isArray(messages)) {
               messages.forEach((msg: string) => {
-                // Remove "body." prefix from field names for user-friendly display
-                const fieldName = field.replace(/^body\./, '').replace(/^password$/, 'Password');
-                errorMessages.push(msg); // Just show the message, field name is usually in the message
+                errorMessages.push(msg);
               });
             }
           });
           const detailedError = errorMessages.length > 0 
             ? errorMessages.join('. ') 
             : errorData.message || 'Validation failed';
-          log('📋 Validation errors:', errorMessages);
           return {
             data: null,
             error: detailedError,
@@ -173,7 +121,6 @@ class ApiClient {
       // Fallback for non-standard responses
       return { data: responseData as any, error: null };
     } catch (error: any) {
-      logError('API request error:', error.message || 'Network error occurred');
       return {
         data: null,
         error: error.message || 'Network error occurred',
@@ -261,7 +208,6 @@ class ApiClient {
       
       return { data: responseData as any, error: null };
     } catch (error: any) {
-      logError('File upload error:', error.message || 'Upload error occurred');
       return {
         data: null,
         error: error.message || 'Upload error occurred',
@@ -278,7 +224,6 @@ export const handleApiError = <T>(
   error: string | null
 ): { data: T | null; error: string | null } => {
   if (error) {
-    logError('API request error:', error);
     return { data: null, error };
   }
   return { data, error: null };

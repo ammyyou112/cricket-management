@@ -27,27 +27,75 @@ const CaptainDashboard = () => {
                 setLoading(true);
                 setError(null);
 
-                // Captain sees their teams + relevant matches
-                const [teamsRes, matchesRes, tournamentsRes] = await Promise.all([
+                // Use Promise.allSettled to prevent one failure from crashing the entire dashboard
+                const [teamsResult, matchesResult, tournamentsResult] = await Promise.allSettled([
                     teamService.getMyTeams(), // Only captain's teams
                     matchService.getAll({ page: 1, limit: 50 }),
                     tournamentService.getAll({ page: 1, limit: 10, status: 'ONGOING' }),
                 ]);
 
-                console.log('✅ Captain data loaded:', { teamsRes, matchesRes, tournamentsRes });
+                // Extract teams data to outer scope
+                let teamsData: Team[] = [];
+                if (teamsResult.status === 'fulfilled') {
+                    const teamsRes = teamsResult.value;
+                    teamsData = Array.isArray(teamsRes) ? teamsRes : (teamsRes?.data || (teamsRes as PaginatedResponse<Team>)?.data || []);
+                    setTeams(teamsData);
+                } else {
+                    console.error('Failed to load teams:', teamsResult.reason);
+                    setTeams([]);
+                }
 
-                // Handle different response formats
-                const teamsData = Array.isArray(teamsRes) ? teamsRes : (teamsRes?.data || (teamsRes as PaginatedResponse<Team>)?.data || []);
-                const matchesData = Array.isArray(matchesRes) ? matchesRes : (matchesRes?.data || (matchesRes as PaginatedResponse<Match>)?.data || []);
-                const tournamentsData = Array.isArray(tournamentsRes) ? tournamentsRes : (tournamentsRes?.data || (tournamentsRes as PaginatedResponse<Tournament>)?.data || []);
+                // Handle matches - gracefully handle failures
+                if (matchesResult.status === 'fulfilled') {
+                    const matchesRes = matchesResult.value;
+                    const matchesData = Array.isArray(matchesRes) ? matchesRes : (matchesRes?.data || (matchesRes as PaginatedResponse<Match>)?.data || []);
+                    setMatches(matchesData);
+                } else {
+                    console.warn('Failed to load matches:', matchesResult.reason);
+                    setMatches([]); // Set empty array instead of crashing
+                }
 
-                setTeams(teamsData);
-                setMatches(matchesData);
-                setTournaments(tournamentsData);
+                // Handle tournaments
+                if (tournamentsResult.status === 'fulfilled') {
+                    const tournamentsRes = tournamentsResult.value;
+                    const tournamentsData = Array.isArray(tournamentsRes) ? tournamentsRes : (tournamentsRes?.data || (tournamentsRes as PaginatedResponse<Tournament>)?.data || []);
+                    setTournaments(tournamentsData);
+                } else {
+                    console.error('Failed to load tournaments:', tournamentsResult.reason);
+                    setTournaments([]);
+                }
 
-                // TODO: Fetch join requests - this might need a separate API endpoint
-                // For now, set empty array
-                setRequests([]);
+                // Fetch join requests for captain's teams
+                if (teamsData.length > 0) {
+                    try {
+                        // Get requests for all captain's teams
+                        const allRequests = await Promise.all(
+                            teamsData.map(async (team: Team) => {
+                                try {
+                                    const teamRequests = await teamService.getPendingRequests(team.id);
+                                    return Array.isArray(teamRequests) ? teamRequests : [];
+                                } catch (err) {
+                                    console.error(`Failed to load requests for team ${team.id}:`, err);
+                                    return [];
+                                }
+                            })
+                        );
+                        
+                        // Flatten and sort by date (most recent first)
+                        const flattenedRequests = allRequests.flat().sort((a: any, b: any) => {
+                            const dateA = new Date(a.createdAt || a.joined_at || 0).getTime();
+                            const dateB = new Date(b.createdAt || b.joined_at || 0).getTime();
+                            return dateB - dateA;
+                        });
+                        
+                        setRequests(flattenedRequests);
+                    } catch (err) {
+                        console.error('Failed to load join requests:', err);
+                        setRequests([]);
+                    }
+                } else {
+                    setRequests([]);
+                }
 
             } catch (err: any) {
                 console.error('❌ Failed to load captain data:', err);
@@ -209,27 +257,36 @@ const CaptainDashboard = () => {
                         <CardDescription>Manage your squad roster.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {requests.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-6 text-center">
-                                <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
-                                <p className="text-muted-foreground text-sm">No pending requests.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
+                        {requests.length > 0 ? (
+                            <div className="space-y-3">
                                 {requests.slice(0, 3).map((req: any) => (
-                                    <div key={req.id} className="flex items-center justify-between border-b last:border-0 pb-2 last:pb-0">
+                                    <div key={req.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
                                         <div>
-                                            <p className="font-medium">{req.player?.fullName || req.player?.full_name}</p>
-                                            <p className="text-xs text-muted-foreground capitalize">{req.player?.playerType?.replace('_', ' ') || req.player?.player_type?.replace('-', ' ')}</p>
+                                            <p className="font-medium">{req.player?.fullName || req.player?.full_name || 'Unknown Player'}</p>
+                                            <p className="text-sm text-gray-600">{req.player?.email || 'No email'}</p>
                                         </div>
-                                        <Badge>Pending</Badge>
+                                        <span className="text-xs text-gray-500">
+                                            {(() => {
+                                                const dateStr = req.createdAt || req.joined_at;
+                                                if (!dateStr) return 'Recently';
+                                                try {
+                                                    const date = new Date(dateStr);
+                                                    if (isNaN(date.getTime())) return 'Recently';
+                                                    return date.toLocaleDateString();
+                                                } catch {
+                                                    return 'Recently';
+                                                }
+                                            })()}
+                                        </span>
                                     </div>
                                 ))}
-                                {requests.length > 3 && (
-                                    <Button variant="outline" className="w-full" size="sm" asChild>
-                                        <Link to="/captain/requests">View All</Link>
-                                    </Button>
-                                )}
+                                <Link to="/captain/requests" className="text-green-600 hover:underline text-sm block text-center">
+                                    View All Requests →
+                                </Link>
+                            </div>
+                        ) : (
+                            <div className="text-center py-8">
+                                <p className="text-gray-500">No pending requests</p>
                             </div>
                         )}
                     </CardContent>

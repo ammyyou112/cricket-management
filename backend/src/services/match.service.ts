@@ -70,8 +70,8 @@ export interface GetMatchesQuery {
   tournamentId?: string;
   teamId?: string;
   status?: MatchStatus;
-  page?: number;
-  limit?: number;
+  page?: number | string;
+  limit?: number | string;
 }
 
 export class MatchService {
@@ -159,75 +159,85 @@ export class MatchService {
     page: number;
     limit: number;
   }> {
-    const page = query.page || 1;
-    const limit = Math.min(query.limit || 10, 100);
-    const skip = (page - 1) * limit;
+    try {
+      // Parse query parameters - handle both string and number types
+      const page = typeof query.page === 'string' ? parseInt(query.page, 10) : (query.page || 1);
+      const limit = typeof query.limit === 'string' 
+        ? Math.min(parseInt(query.limit, 10), 100) 
+        : Math.min(query.limit || 10, 100);
+      const skip = (page - 1) * limit;
 
-    const where: any = {};
+      const where: any = {};
 
-    if (query.tournamentId) {
-      where.tournamentId = query.tournamentId;
+      if (query.tournamentId) {
+        where.tournamentId = query.tournamentId;
+      }
+
+      if (query.teamId) {
+        where.OR = [
+          { teamAId: query.teamId },
+          { teamBId: query.teamId },
+        ];
+      }
+
+      if (query.status) {
+        where.status = query.status;
+      }
+
+      const total = await prisma.match.count({ where });
+
+      const matches = await prisma.match.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { matchDate: 'desc' },
+        include: {
+          teamA: {
+            select: {
+              id: true,
+              teamName: true,
+              logoUrl: true,
+            },
+          },
+          teamB: {
+            select: {
+              id: true,
+              teamName: true,
+              logoUrl: true,
+            },
+          },
+          tournament: {
+            select: {
+              id: true,
+              tournamentName: true,
+            },
+          },
+          // Include scores relation (optional - may be empty array)
+          scores: {
+            select: {
+              id: true,
+              matchId: true,
+              battingTeamId: true,
+              totalRuns: true,
+              totalWickets: true,
+              totalOvers: true,
+            },
+          },
+        },
+      });
+
+      return {
+        matches,
+        total,
+        page,
+        limit,
+      };
+    } catch (error: any) {
+      console.error('❌ Error in MatchService.getMatches:', error);
+      throw new BadRequestError(
+        `Failed to fetch matches: ${error.message || 'Unknown error'}`
+      );
     }
-
-    if (query.teamId) {
-      where.OR = [
-        { teamAId: query.teamId },
-        { teamBId: query.teamId },
-      ];
-    }
-
-    if (query.status) {
-      where.status = query.status;
-    }
-
-    const total = await prisma.match.count({ where });
-
-    const matches = await prisma.match.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { matchDate: 'desc' },
-      include: {
-        teamA: {
-          select: {
-            id: true,
-            teamName: true,
-            logoUrl: true,
-          },
-        },
-        teamB: {
-          select: {
-            id: true,
-            teamName: true,
-            logoUrl: true,
-          },
-        },
-        tournament: {
-          select: {
-            id: true,
-            tournamentName: true,
-          },
-        },
-        // Only include scores if they exist (optional relation)
-        scores: {
-          select: {
-            id: true,
-            matchId: true,
-            battingTeamId: true,
-            totalRuns: true,
-            totalWickets: true,
-            totalOvers: true,
-          },
-        },
-      },
-    });
-
-    return {
-      matches,
-      total,
-      page,
-      limit,
-    };
   }
 
   /**

@@ -24,10 +24,9 @@ router.get(
   MatchController.getMatches
 );
 
-// Create match (admin only)
+// Create match (admin or captain)
 router.post(
   '/',
-  authorize(UserRole.ADMIN),
   validate(createMatchSchema),
   MatchController.createMatch
 );

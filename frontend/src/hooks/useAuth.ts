@@ -6,18 +6,7 @@ import { UserRole, PlayerType, User } from '../types/database.types';
 import { User as ApiUser } from '../types/api.types';
 import { TokenUtils } from '../utils/token.utils';
 
-// Only log in development mode
-const isDev = import.meta.env.DEV;
-const log = (...args: any[]) => {
-  if (isDev) {
-    console.log(...args);
-  }
-};
-const logError = (...args: any[]) => {
-  if (isDev) {
-    console.error(...args);
-  }
-};
+// Logging removed for production
 
 /**
  * Transform backend user format to frontend format
@@ -87,10 +76,8 @@ export const useAuth = () => {
                         // Transform and set user
                         const transformedUser = transformUser(currentUser);
                         setUser(transformedUser, transformedUser.role);
-                        log('✅ Auto-login successful');
                     } else {
                         // Token exists but invalid, clear everything
-                        log('⚠️ Token invalid, clearing auth');
                         TokenUtils.clearAuth();
                         storeLogout();
                     }
@@ -102,7 +89,6 @@ export const useAuth = () => {
                 }
             } catch (err: any) {
                 // Error fetching user (token expired, invalid, etc.)
-                logError('⚠️ Auth check failed:', err.message);
                 TokenUtils.clearAuth();
                 if (!user) {
                     storeLogout();
@@ -122,12 +108,10 @@ export const useAuth = () => {
             const apiUser = await authApi.signIn({ email, password });
             const user = transformUser(apiUser);
             setUser(user, user.role);
-            log('✅ Login successful');
             return user;
         } catch (err: any) {
             const errorMessage = err.message || 'Login failed. Please check your credentials.';
             setError(errorMessage);
-            logError('❌ Login failed:', errorMessage);
             throw err; // Re-throw so components can handle it too
         } finally {
             setStoreLoading(false);
@@ -156,15 +140,38 @@ export const useAuth = () => {
             if (apiUser) {
                 const user = transformUser(apiUser);
                 setUser(user, user.role);
-                log('✅ Registration successful');
                 return user;
             }
             throw new Error('Registration failed');
         } catch (err: any) {
-            const errorMessage = err.message || 'Registration failed. Please try again.';
+            // Extract error message from multiple possible formats
+            let errorMessage = 'Registration failed. Please try again.';
+            
+            if (err?.message && typeof err.message === 'string' && err.message.trim()) {
+                errorMessage = err.message.trim();
+            } else if (err?.response?.data?.message && typeof err.response.data.message === 'string') {
+                errorMessage = err.response.data.message.trim();
+            } else if (err?.response?.data?.error && typeof err.response.data.error === 'string') {
+                errorMessage = err.response.data.error.trim();
+            } else if (typeof err === 'string' && err.trim()) {
+                errorMessage = err.trim();
+            }
+            
             setError(errorMessage);
-            logError('❌ Registration failed:', errorMessage);
-            throw err;
+            
+            // ✅ CRITICAL: Always create a new Error with the extracted message
+            // This ensures the error object has a proper message property
+            const errorToThrow = new Error(errorMessage);
+            
+            // Preserve original error properties if they exist
+            if (err?.response) {
+                (errorToThrow as any).response = err.response;
+            }
+            if (err?.stack) {
+                errorToThrow.stack = err.stack;
+            }
+            
+            throw errorToThrow;
         } finally {
             setStoreLoading(false);
         }
@@ -177,7 +184,6 @@ export const useAuth = () => {
             storeLogout();
         } catch (err: any) {
             setError(err.message || 'Logout failed');
-            logError('Logout error:', err.message || 'Logout failed');
         } finally {
             setStoreLoading(false);
         }
@@ -212,3 +218,4 @@ export const useAuth = () => {
         updateProfile,
     };
 };
+

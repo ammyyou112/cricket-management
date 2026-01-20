@@ -1,377 +1,355 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { Button } from '../../components/ui/button';
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-    FormDescription,
-} from '../../components/ui/form';
-import { Input } from '../../components/ui/input';
-import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '../../components/ui/select';
-import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../components/ui/card';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/components/ui/use-toast';
 
-const registerSchema = z.object({
-    full_name: z.string().min(2, 'Name must be at least 2 characters'),
-    email: z.string().email('Invalid email address'),
-    password: z.string()
-        .min(8, 'Password must be at least 8 characters')
-        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-        .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-        .regex(/[0-9]/, 'Password must contain at least one number'),
-    confirm_password: z.string(),
-    role: z.enum(['player', 'captain']),
-    player_type: z.enum(['batsman', 'bowler', 'all-rounder', 'wicket-keeper']).optional(),
-}).refine((data) => data.password === data.confirm_password, {
-    message: "Passwords do not match",
-    path: ["confirm_password"],
-}).refine((data) => {
-    if ((data.role === 'player' || data.role === 'captain') && !data.player_type) {
-        return false;
-    }
-    return true;
-}, {
-    message: "Player type is required for players and captains",
-    path: ["player_type"],
-});
+export default function Register() {
+  const navigate = useNavigate();
+  const { register } = useAuth();
+  const { toast } = useToast();
+  
+  // ═══ STATE ═══
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    confirmPassword: '',
+    fullName: '',
+    role: 'PLAYER' as 'PLAYER' | 'CAPTAIN',
+    playerType: ''
+  });
+  
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-type RegisterValues = z.infer<typeof registerSchema>;
-
-const Register = () => {
-    const { register: registerUser, user, isAuthenticated } = useAuth();
-    const navigate = useNavigate();
-    const [authError, setAuthError] = useState<string | null>(null);
+  // ═══ HANDLERS ═══
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
     
-    // ✅ Debug: Log error state changes
-    useEffect(() => {
-        if (authError) {
-            console.log('🔴 Error state updated:', authError);
-        }
-    }, [authError]);
+    // Clear error for this field when user types
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+    if (error) setError('');
+  };
 
-    const form = useForm<RegisterValues>({
-        resolver: zodResolver(registerSchema),
-        defaultValues: {
-            full_name: '',
-            email: '',
-            password: '',
-            confirm_password: '',
-            role: 'player',
-            player_type: undefined,
-        },
-    });
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
 
-    const selectedRole = form.watch('role');
+    // Email validation
+    if (!formData.email) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
 
-    const onSubmit = async (data: RegisterValues) => {
-        setAuthError(null);
-        try {
-            // Transform player_type format for backend
-            const playerTypeMap: Record<string, string> = {
-                'batsman': 'BATSMAN',
-                'bowler': 'BOWLER',
-                'all-rounder': 'ALL_ROUNDER',
-                'wicket-keeper': 'WICKET_KEEPER',
-            };
+    // Password validation
+    if (!formData.password) {
+      errors.password = 'Password is required';
+    } else if (formData.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])/.test(formData.password)) {
+      errors.password = 'Password must contain uppercase, lowercase, and number';
+    }
 
-            const backendPlayerType = data.player_type ? playerTypeMap[data.player_type] : undefined;
+    // Confirm password
+    if (formData.password !== formData.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
+    }
 
-            const user = await registerUser(
-                data.email,
-                data.password,
-                data.full_name,
-                data.role,
-                backendPlayerType as any
-            );
-            
-            // Only log in development mode, and sanitize sensitive data
-            if (import.meta.env.DEV) {
-                const sanitizedUser = user ? {
-                    email: user.email,
-                    role: user.role,
-                    full_name: user.full_name,
-                    // ID and other sensitive fields excluded
-                } : null;
-                console.log('✅ Registration successful:', sanitizedUser);
-            }
-            
-            // Navigate to user's dashboard based on role
-            if (user) {
-                // Map roles to dashboard routes
-                const roleRoutes: Record<string, string> = {
-                    'admin': '/admin/dashboard',
-                    'captain': '/captain/dashboard',
-                    'player': '/player/dashboard',
-                };
-                
-                const dashboardRoute = roleRoutes[user.role] || '/dashboard';
-                navigate(dashboardRoute, { replace: true });
-            } else {
-                navigate('/login');
-            }
-        } catch (err: any) {
-            // Handle validation errors from backend
-            let errorMessage = 'Failed to create account. Please try again.';
-            
-            // ✅ Prioritize backend error message (includes test email validation)
-            // Check multiple possible error formats
-            if (err?.message) {
-                errorMessage = err.message;
-            } else if (err?.response?.data?.message) {
-                errorMessage = err.response.data.message;
-            } else if (err?.response?.data?.error) {
-                errorMessage = err.response.data.error;
-            } else if (err?.error) {
-                errorMessage = err.error;
-            } else if (err?.response?.data?.errors) {
-                // Handle field-specific errors
-                const fieldErrors = Object.values(err.response.data.errors).flat();
-                errorMessage = fieldErrors.join(', ') || errorMessage;
-            }
-            
-            // ✅ Debug logging - Always log to help diagnose
-            console.error('❌ Registration Error Details:', {
-                errorMessage,
-                err,
-                errMessage: err?.message,
-                errResponse: err?.response,
-                errError: err?.error,
-                errString: String(err),
-            });
-            
-            // ✅ Clear any previous errors and set the new one
-            // Ensure we always set an error message, even if extraction failed
-            const finalErrorMessage = errorMessage || String(err) || 'An unexpected error occurred';
-            setAuthError(finalErrorMessage);
-            
-            // ✅ Also log the state update
-            console.log('🔴 Setting authError state to:', finalErrorMessage);
-            
-            // ✅ Force re-render and scroll to error message
-            setTimeout(() => {
-                const errorElement = document.querySelector('[role="alert"]') || 
-                                    document.querySelector('.alert-destructive') ||
-                                    document.querySelector('[data-error="true"]');
-                if (errorElement) {
-                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-            }, 200);
-        }
-    };
+    // Full name
+    if (!formData.fullName || formData.fullName.trim().length < 2) {
+      errors.fullName = 'Please enter your full name';
+    }
 
-    return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8">
-            <Card className="w-full max-w-lg shadow-lg">
-                <CardHeader className="space-y-1">
-                    <CardTitle className="text-2xl font-bold text-center">Create an account</CardTitle>
-                    <CardDescription className="text-center">
-                        Enter your details below to create your account
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                            {/* ✅ SIMPLE ERROR MESSAGE - Always visible at top */}
-                            {authError && (
-                                <div className="mb-4 p-4 bg-red-50 border-2 border-red-400 rounded-lg shadow-md">
-                                    <div className="flex items-start gap-3">
-                                        <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                                        <div className="flex-1">
-                                            <h4 className="text-red-800 font-bold text-sm mb-1">
-                                                Registration Failed
-                                            </h4>
-                                            <p className="text-red-700 text-sm font-medium">
-                                                {authError}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {isAuthenticated && user && (
-                                <Alert>
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertTitle>Already Logged In</AlertTitle>
-                                    <AlertDescription>
-                                        You are currently logged in as {user.full_name}. 
-                                        You can create a new account or{' '}
-                                        <Link to={`/${user.role}/dashboard`} className="font-semibold text-primary hover:underline">
-                                            go to your dashboard
-                                        </Link>.
-                                    </AlertDescription>
-                                </Alert>
-                            )}
+    // Player type (for PLAYER role)
+    if (formData.role === 'PLAYER' && !formData.playerType) {
+      errors.playerType = 'Please select your player type';
+    }
 
-                            <FormField
-                                control={form.control}
-                                name="full_name"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Full Name</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="John Doe" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <FormField
-                                    control={form.control}
-                                    name="email"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Email</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="m@example.com" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    
+    // Clear previous errors
+    setError('');
+    setFieldErrors({});
 
-                                {/* No password strength indicator explicitly requested other than validation, but we can assume nice UI */}
-                                    <FormField
-                                        control={form.control}
-                                        name="password"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Password</FormLabel>
-                                                <FormControl>
-                                                    <Input type="password" placeholder="••••••" {...field} />
-                                                </FormControl>
-                                                <FormDescription>
-                                                    Must be at least 8 characters with uppercase, lowercase, and a number
-                                                </FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                            </div>
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
 
-                            <FormField
-                                control={form.control}
-                                name="confirm_password"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Confirm Password</FormLabel>
-                                        <FormControl>
-                                            <Input type="password" placeholder="••••••" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+    setLoading(true);
 
-                            <FormField
-                                control={form.control}
-                                name="role"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>I am a...</FormLabel>
-                                        <FormControl>
-                                            <RadioGroup
-                                                onValueChange={field.onChange}
-                                                defaultValue={field.value}
-                                                className="flex flex-col space-y-1"
-                                            >
-                                                <FormItem className="flex items-center space-x-3 space-y-0">
-                                                    <FormControl>
-                                                        <RadioGroupItem value="player" />
-                                                    </FormControl>
-                                                    <FormLabel className="font-normal">
-                                                        Player (Participate in matches)
-                                                    </FormLabel>
-                                                </FormItem>
-                                                <FormItem className="flex items-center space-x-3 space-y-0">
-                                                    <FormControl>
-                                                        <RadioGroupItem value="captain" />
-                                                    </FormControl>
-                                                    <FormLabel className="font-normal">
-                                                        Captain (Manage team and matches)
-                                                    </FormLabel>
-                                                </FormItem>
-                                            </RadioGroup>
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+    try {
+      // Transform player type format for backend
+      const playerTypeMap: Record<string, string> = {
+        'BATSMAN': 'BATSMAN',
+        'BOWLER': 'BOWLER',
+        'ALL_ROUNDER': 'ALL_ROUNDER',
+        'WICKET_KEEPER': 'WICKET_KEEPER',
+      };
 
-                            {(selectedRole === 'player' || selectedRole === 'captain') && (
-                                <FormField
-                                    control={form.control}
-                                    name="player_type"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Player Type</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Select your play style" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="batsman">Batsman</SelectItem>
-                                                    <SelectItem value="bowler">Bowler</SelectItem>
-                                                    <SelectItem value="all-rounder">All-Rounder</SelectItem>
-                                                    <SelectItem value="wicket-keeper">Wicket-Keeper</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormDescription>
-                                                This helps captains find you for their team.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            )}
+      const backendPlayerType = formData.playerType ? playerTypeMap[formData.playerType] : undefined;
 
-                            <Button
-                                type="submit"
-                                className="w-full"
-                                disabled={form.formState.isSubmitting}
-                            >
-                                {form.formState.isSubmitting ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Creating account...
-                                    </>
-                                ) : (
-                                    'Create Account'
-                                )}
-                            </Button>
-                        </form>
-                    </Form>
-                </CardContent>
-                <CardFooter className="flex justify-center text-sm text-gray-500">
-                    <div>
-                        Already have an account?{' '}
-                        <Link to="/login" className="font-semibold text-primary hover:underline">
-                            Sign in
-                        </Link>
-                    </div>
-                </CardFooter>
-            </Card>
+      await register(
+        formData.email,
+        formData.password,
+        formData.fullName,
+        formData.role.toLowerCase() as 'player' | 'captain',
+        backendPlayerType?.toLowerCase().replace('_', '-') as any
+      );
+      
+      toast({
+        title: 'Success',
+        description: 'Registration successful! Redirecting...',
+      });
+      setTimeout(() => navigate('/login'), 1000);
+    } catch (err: any) {
+      // Extract error message
+      const errorMessage = err.response?.data?.message || err.message || 'Registration failed. Please try again.';
+      const errorField = err.response?.data?.field;
+      
+      // Set appropriate error
+      if (errorField && errorField !== 'credentials') {
+        setFieldErrors({ [errorField]: errorMessage });
+      } else {
+        setError(errorMessage);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ═══ RENDER ═══
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Create Account</h1>
+          <p className="text-gray-600">Join Cricket 360 and start playing</p>
         </div>
-    );
-};
 
-export default Register;
+        {/* Form Card */}
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* General Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-md">
+              <div className="flex items-start">
+                <AlertCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+                <p className="text-sm font-medium text-red-800">{error}</p>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Full Name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Full Name
+              </label>
+              <input
+                type="text"
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleChange}
+                className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  fieldErrors.fullName 
+                    ? 'border-red-500 focus:ring-red-500' 
+                    : 'border-gray-300 focus:ring-green-500'
+                }`}
+                placeholder="John Doe"
+              />
+              {fieldErrors.fullName && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.fullName}</p>
+              )}
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  fieldErrors.email 
+                    ? 'border-red-500 focus:ring-red-500' 
+                    : 'border-gray-300 focus:ring-green-500'
+                }`}
+                placeholder="john@example.com"
+              />
+              {fieldErrors.email && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+              )}
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors pr-10 ${
+                    fieldErrors.password 
+                      ? 'border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:ring-green-500'
+                  }`}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              {fieldErrors.password && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                Must be 8+ characters with uppercase, lowercase, and number
+              </p>
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors pr-10 ${
+                    fieldErrors.confirmPassword 
+                      ? 'border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:ring-green-500'
+                  }`}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              {fieldErrors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.confirmPassword}</p>
+              )}
+            </div>
+
+            {/* Role Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                I am a...
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="PLAYER"
+                    checked={formData.role === 'PLAYER'}
+                    onChange={handleChange}
+                    className="mr-3"
+                  />
+                  <span className="font-medium">Player</span>
+                  <span className="text-sm text-gray-500 ml-2">(Participate in matches)</span>
+                </label>
+                <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="CAPTAIN"
+                    checked={formData.role === 'CAPTAIN'}
+                    onChange={handleChange}
+                    className="mr-3"
+                  />
+                  <span className="font-medium">Captain</span>
+                  <span className="text-sm text-gray-500 ml-2">(Manage team and matches)</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Player Type (only for PLAYER) */}
+            {formData.role === 'PLAYER' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Player Type
+                </label>
+                <select
+                  name="playerType"
+                  value={formData.playerType}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                    fieldErrors.playerType 
+                      ? 'border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:ring-green-500'
+                  }`}
+                >
+                  <option value="">Select your play style</option>
+                  <option value="BATSMAN">Batsman</option>
+                  <option value="BOWLER">Bowler</option>
+                  <option value="ALL_ROUNDER">All-Rounder</option>
+                  <option value="WICKET_KEEPER">Wicket Keeper</option>
+                </select>
+                {fieldErrors.playerType && (
+                  <p className="mt-1 text-sm text-red-600">{fieldErrors.playerType}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  This helps captains find you for their team
+                </p>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Creating Account...' : 'Create Account'}
+            </button>
+          </form>
+
+          {/* Login Link */}
+          <p className="mt-6 text-center text-sm text-gray-600">
+            Already have an account?{' '}
+            <Link to="/login" className="font-medium text-green-600 hover:text-green-700">
+              Login here
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

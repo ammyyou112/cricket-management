@@ -26,16 +26,20 @@ model User {
   isSuspended         Boolean              @default(false) @map("is_suspended")
   suspendReason       String?              @map("suspend_reason")
   suspendedAt         DateTime?            @map("suspended_at")
-  matchesAsApprover   Match[]              @relation("MatchApprover")
-  matchesAsScorer     Match[]              @relation("MatchScorer")
+  matchesAsApprover   Match[]                    @relation("MatchApprover")
+  matchesAsScorer     Match[]                    @relation("MatchScorer")
   notifications       Notification[]
   passwordResetTokens PasswordResetToken[]
   playerStats         PlayerStat[]
   refreshTokens       RefreshToken[]
   scoreUpdates        ScoreUpdate[]
   teamMemberships     TeamMember[]
-  captainedTeams      Team[]               @relation("TeamCaptain")
+  captainedTeams      Team[]                     @relation("TeamCaptain")
   createdTournaments  Tournament[]
+  scoresSubmitted    MatchScoreVerification[]    @relation("ScoreSubmitter")
+  scoresVerified      MatchScoreVerification[]    @relation("ScoreVerifier")
+  approvalRequests    MatchStartApproval[]        @relation("ApprovalRequester")
+  approvalsGiven     MatchStartApproval[]         @relation("ApprovalApprover")
 
   @@index([email])
   @@index([role])
@@ -139,34 +143,49 @@ model Tournament {
 }
 
 model Match {
-  id                  String        @id @default(uuid())
-  tournamentId        String?       @map("tournament_id")
-  teamAId             String        @map("team_a_id")
-  teamBId             String        @map("team_b_id")
+  id                  String                  @id @default(uuid())
+  tournamentId        String?                  @map("tournament_id")
+  teamAId             String                   @map("team_a_id")
+  teamBId             String                   @map("team_b_id")
   venue               String
-  matchDate           DateTime      @map("match_date")
-  matchType           MatchType?    @map("match_type")
-  status              MatchStatus   @default(SCHEDULED)
-  scoringCaptainId    String?       @map("scoring_captain_id")
-  approvedByCaptainId String?       @map("approved_by_captain_id")
-  winnerTeamId        String?       @map("winner_team_id")
-  createdAt           DateTime      @default(now()) @map("created_at")
-  updatedAt           DateTime      @updatedAt @map("updated_at")
+  matchDate           DateTime                 @map("match_date")
+  matchType           MatchType?               @map("match_type")
+  status              MatchStatus              @default(SCHEDULED)
+  scoringCaptainId    String?                  @map("scoring_captain_id")
+  approvedByCaptainId String?                  @map("approved_by_captain_id")
+  winnerTeamId        String?                  @map("winner_team_id")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
+  // Scoring fields (Feature 4)
+  scoringStatus       String?                  @default("NOT_STARTED") @map("scoring_status")
+  currentInning       Int?                     @default(1) @map("current_inning")
+  teamAScore          Int?                     @default(0) @map("team_a_score")
+  teamAWickets        Int?                     @default(0) @map("team_a_wickets")
+  teamAOvers          Decimal?                 @default(0) @map("team_a_overs") @db.Decimal(4, 1)
+  teamBScore          Int?                     @default(0) @map("team_b_score")
+  teamBWickets        Int?                     @default(0) @map("team_b_wickets")
+  teamBOvers          Decimal?                 @default(0) @map("team_b_overs") @db.Decimal(4, 1)
+  scoringStartedAt    DateTime?                @map("scoring_started_at")
+  scoringCompletedAt  DateTime?                @map("scoring_completed_at")
+  scoringStartedBy    String?                  @map("scoring_started_by")
   scores              MatchScore[]
-  approvedByCaptain   User?         @relation("MatchApprover", fields: [approvedByCaptainId], references: [id])
-  scoringCaptain      User?         @relation("MatchScorer", fields: [scoringCaptainId], references: [id])
-  teamA               Team          @relation("MatchTeamA", fields: [teamAId], references: [id])
-  teamB               Team          @relation("MatchTeamB", fields: [teamBId], references: [id])
-  tournament          Tournament?   @relation(fields: [tournamentId], references: [id], onUpdate: NoAction)
-  winnerTeam          Team?         @relation("MatchWinner", fields: [winnerTeamId], references: [id])
+  approvedByCaptain   User?                    @relation("MatchApprover", fields: [approvedByCaptainId], references: [id])
+  scoringCaptain      User?                    @relation("MatchScorer", fields: [scoringCaptainId], references: [id])
+  teamA               Team                     @relation("MatchTeamA", fields: [teamAId], references: [id])
+  teamB               Team                     @relation("MatchTeamB", fields: [teamBId], references: [id])
+  tournament          Tournament?              @relation(fields: [tournamentId], references: [id], onUpdate: NoAction)
+  winnerTeam          Team?                    @relation("MatchWinner", fields: [winnerTeamId], references: [id])
   playerStats         PlayerStat[]
   scoreUpdates        ScoreUpdate[]
+  scoreVerifications  MatchScoreVerification[]
+  startApprovals      MatchStartApproval[]
 
   @@index([tournamentId])
   @@index([teamAId])
   @@index([teamBId])
   @@index([matchDate])
   @@index([status])
+  @@index([scoringStatus])
   @@map("matches")
 }
 
@@ -305,4 +324,48 @@ enum NotificationType {
   MATCH_SCHEDULED
   SCORE_UPDATE
   TEAM_UPDATE
+}
+
+// Feature 5: Score Verification System
+model MatchScoreVerification {
+  id            String    @id @default(uuid())
+  matchId       String    @map("match_id")
+  match         Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  submittedBy   String    @map("submitted_by")
+  submitter     User      @relation("ScoreSubmitter", fields: [submittedBy], references: [id], onDelete: Cascade)
+  verifiedBy    String?   @map("verified_by")
+  verifier      User?     @relation("ScoreVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
+  status        String    @default("PENDING") // PENDING, VERIFIED, DISPUTED, FINAL
+  teamAScore    Int       @map("team_a_score")
+  teamBScore    Int       @map("team_b_score")
+  teamAWickets  Int       @map("team_a_wickets")
+  teamBWickets  Int       @map("team_b_wickets")
+  disputeReason String?   @map("dispute_reason")
+  submittedAt   DateTime  @default(now()) @map("submitted_at")
+  verifiedAt    DateTime? @map("verified_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([matchId])
+  @@index([submittedBy])
+  @@index([status])
+  @@map("match_score_verifications")
+}
+
+// Feature 6: Match Start Approval System
+model MatchStartApproval {
+  id           String    @id @default(uuid())
+  matchId      String    @map("match_id")
+  match        Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  requestedBy  String    @map("requested_by")
+  requester    User      @relation("ApprovalRequester", fields: [requestedBy], references: [id], onDelete: Cascade)
+  approvedBy   String?   @map("approved_by")
+  approver     User?     @relation("ApprovalApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  requestedAt   DateTime  @default(now()) @map("requested_at")
+  respondedAt  DateTime? @map("responded_at")
+
+  @@index([matchId])
+  @@index([requestedBy])
+  @@index([status])
+  @@map("match_start_approvals")
 }

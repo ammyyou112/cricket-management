@@ -23,15 +23,11 @@ const MyTeams = () => {
         const loadMyTeams = async () => {
             try {
                 setLoading(true);
-                console.log('🔍 Player: Loading my teams...');
                 
                 const data = await teamService.getMyTeams();
                 const teamsData = Array.isArray(data) ? data : (data?.data || []);
-                
-                console.log('✅ Player teams loaded:', teamsData.length);
                 setTeams(teamsData);
             } catch (err: any) {
-                console.error('❌ Failed to load teams:', err);
                 toast({
                     title: 'Error',
                     description: err.message || 'Failed to load teams',
@@ -53,19 +49,13 @@ const MyTeams = () => {
         }
 
         try {
-            console.log('🔵 Leaving team:', teamId);
-            // Note: Backend might need a "leave team" endpoint
-            // For now, we'll use removeMember with current user's ID
-            if (user?.id) {
-                await teamService.removeMember(teamId, user.id);
-                console.log('✅ Left team successfully');
-                toast({
-                    title: 'Success',
-                    description: 'You have left the team',
-                });
-                // Remove from state
-                setTeams(teams.filter(t => t.id !== teamId));
-            }
+            await teamService.leaveTeam(teamId);
+            toast({
+                title: 'Success',
+                description: 'You have left the team',
+            });
+            // Remove from state
+            setTeams(teams.filter(t => t.id !== teamId));
         } catch (err: any) {
             console.error('❌ Failed to leave team:', err);
             toast({

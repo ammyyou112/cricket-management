@@ -34,20 +34,29 @@ export const getUserLocation = (): Promise<Coordinates> => {
         });
       },
       (error) => {
-        const errorMessages: Record<number, string> = {
-          1: 'Location permission denied. Please enable location access in your browser settings.',
-          2: 'Location information unavailable.',
-          3: 'Location request timed out.',
-        };
+        let errorMessage = 'Failed to get location';
+        
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location permission denied. Please enable location in browser settings.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location unavailable. Please try again or enter manually.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out. Please try again.';
+            break;
+        }
+        
         reject({
           code: error.code,
-          message: errorMessages[error.code] || 'Unknown error occurred',
+          message: errorMessage,
         });
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
+        timeout: 15000, // ✅ Increased to 15 seconds
+        maximumAge: 0
       }
     );
   });
