@@ -37,37 +37,76 @@ export class AuthService {
    * Register a new user
    */
   static async register(input: RegisterInput): Promise<AuthResponse> {
-    // ✅ BLOCK test/fake emails for NEW registrations only
-    const emailLower = input.email.toLowerCase();
+    // ═══ VALIDATION ═══
     
-    // Check for test email patterns
-    const testEmailPatterns = [
-      /^test\d*@/i,        // test@, test1@, test123@
-      /^fake\d*@/i,        // fake@, fake1@
-      /^temp\d*@/i,        // temp@, temp1@
-      /^dummy\d*@/i,       // dummy@, dummy1@
-      /^sample\d*@/i,      // sample@
-      /@test\./i,          // @test.com, @test.org
-      /@example\./i,       // @example.com
-      /@fake\./i,          // @fake.com
-      /@temp\./i,          // @temp.com
+    // 1. Required fields
+    if (!input.email || !input.password || !input.fullName || !input.role) {
+      throw new BadRequestError('All fields are required');
+    }
+
+    // 2. Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailLower = input.email.toLowerCase().trim();
+    
+    if (!emailRegex.test(emailLower)) {
+      throw new BadRequestError('Please enter a valid email address');
+    }
+
+    // 3. Block test emails (NEW REGISTRATIONS ONLY)
+    const testPatterns = [
+      /test\d*@/i,
+      /fake\d*@/i,
+      /temp\d*@/i,
+      /dummy\d*@/i,
+      /sample\d*@/i,
+      /@test\./i,
+      /@example\./i,
+      /@fake\./i,
+      /@temp\./i
     ];
-    
-    const isTestEmail = testEmailPatterns.some(pattern => pattern.test(input.email));
-    
-    if (isTestEmail) {
+
+    if (testPatterns.some(pattern => pattern.test(emailLower))) {
       throw new BadRequestError(
-        'Test email addresses are not allowed for new registrations. Please use your real email address (Gmail, Outlook, Yahoo, etc.).'
+        'Please use a real email address (Gmail, Outlook, Yahoo, etc.). Test emails are not allowed for new registrations.'
       );
     }
 
-    // Check if user already exists
+    // 4. Password strength
+    if (input.password.length < 8) {
+      throw new BadRequestError('Password must be at least 8 characters long');
+    }
+
+    const hasUpperCase = /[A-Z]/.test(input.password);
+    const hasLowerCase = /[a-z]/.test(input.password);
+    const hasNumber = /[0-9]/.test(input.password);
+
+    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+      throw new BadRequestError('Password must contain uppercase, lowercase, and number');
+    }
+
+    // 5. Full name validation
+    if (input.fullName.trim().length < 2) {
+      throw new BadRequestError('Please enter your full name');
+    }
+
+    // 6. Role validation
+    const allowedRoles = ['PLAYER', 'CAPTAIN'];
+    if (!allowedRoles.includes(input.role)) {
+      throw new BadRequestError('Invalid role. Only PLAYER and CAPTAIN are allowed for registration.');
+    }
+
+    // 7. Player type required for PLAYER role
+    if (input.role === 'PLAYER' && !input.playerType) {
+      throw new BadRequestError('Player type is required for players');
+    }
+
+    // 8. Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: input.email },
+      where: { email: emailLower },
     });
 
     if (existingUser) {
-      throw new ConflictError('User with this email already exists');
+      throw new ConflictError('An account with this email already exists. Please login instead.');
     }
 
     // Hash password
@@ -87,15 +126,15 @@ export class AuthService {
       throw new BadRequestError('Invalid role. Only PLAYER and CAPTAIN roles can be registered.');
     }
     
-    // Create user
+    // 9. Create user
     const user = await prisma.user.create({
       data: {
-        email: input.email,
+        email: emailLower,
         password: hashedPassword,
-        fullName: input.fullName,
+        fullName: input.fullName.trim(),
         playerType: input.playerType,
-        phone: input.phone,
-        city: input.city,
+        phone: input.phone?.trim(),
+        city: input.city?.trim(),
         role: userRole,
       },
     });
@@ -130,16 +169,43 @@ export class AuthService {
    * Login user
    */
   static async login(input: LoginInput): Promise<AuthResponse> {
-    // Find user by email
+    // ═══ VALIDATION ═══
+    
+    // 1. Required fields
+    if (!input.email || !input.password) {
+      throw new BadRequestError('Email and password are required');
+    }
+
+    // 2. Email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailLower = input.email.toLowerCase().trim();
+    
+    if (!emailRegex.test(emailLower)) {
+      throw new BadRequestError('Please enter a valid email address');
+    }
+
+    // 3. Find user (allow test emails for existing users)
     const user = await prisma.user.findUnique({
-      where: { email: input.email },
+      where: { email: emailLower },
     });
 
     if (!user) {
       throw new UnauthorizedError('Invalid email or password');
     }
 
-    // Verify password
+    // 4. Check if account is blocked
+    if (user.isBlocked) {
+      throw new ForbiddenError('Your account has been blocked. Please contact support.');
+    }
+
+    // 5. Check if suspended
+    if (user.isSuspended) {
+      throw new ForbiddenError(
+        `Your account is suspended. Reason: ${user.suspendReason || 'Policy violation'}`
+      );
+    }
+
+    // 6. Verify password
     const isPasswordValid = await PasswordUtil.compare(
       input.password,
       user.password

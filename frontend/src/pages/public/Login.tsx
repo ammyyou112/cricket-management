@@ -1,182 +1,226 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { Button } from '../../components/ui/button';
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from '../../components/ui/form';
-import { Input } from '../../components/ui/input';
-import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../components/ui/card';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { useState, FormEvent, useRef, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/components/ui/use-toast';
 
-const loginSchema = z.object({
-    email: z.string().email('Invalid email address'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
-});
+export default function Login() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const { toast } = useToast();
+  
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
+  
+  const [error, setError] = useState('');
+  const errorRef = useRef('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-type LoginValues = z.infer<typeof loginSchema>;
+  // Sync error to ref for persistence
+  useEffect(() => {
+    if (error) {
+      errorRef.current = error;
+    }
+  }, [error]);
 
-const Login = () => {
-    const { login, user, isAuthenticated } = useAuth();
-    const navigate = useNavigate();
-    const location = useLocation();
-    const [authError, setAuthError] = useState<string | null>(null);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear field errors when user types
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+    // Clear general error when user starts typing
+    if (error || errorRef.current) {
+      setError('');
+      errorRef.current = '';
+    }
+  };
 
-    // Need to cast location.state as it is unknown
-    const from = (location.state as any)?.from?.pathname || '/';
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    
+    setError('');
+    setFieldErrors({});
 
-    const form = useForm<LoginValues>({
-        resolver: zodResolver(loginSchema),
-        defaultValues: {
-            email: '',
-            password: '',
-        },
-    });
+    // Basic validation
+    const errors: Record<string, string> = {};
+    
+    if (!formData.email) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    if (!formData.password) {
+      errors.password = 'Password is required';
+    }
 
-    const onSubmit = async (data: LoginValues) => {
-        setAuthError(null);
-        try {
-            const user = await login(data);
-            // Only log in development mode, and sanitize sensitive data
-            if (import.meta.env.DEV && user) {
-                const sanitizedUser = {
-                    email: user.email,
-                    role: user.role,
-                    full_name: user.full_name,
-                    // ID and other sensitive fields excluded
-                };
-                console.log('✅ Login successful:', sanitizedUser);
-            }
-            
-            // Navigate to user's dashboard based on role
-            if (user) {
-                // Map roles to dashboard routes
-                const roleRoutes: Record<string, string> = {
-                    'admin': '/admin/dashboard',
-                    'captain': '/captain/dashboard',
-                    'player': '/player/dashboard',
-                };
-                
-                const dashboardRoute = roleRoutes[user.role] || '/dashboard';
-                navigate(dashboardRoute, { replace: true });
-            } else {
-                navigate(from || '/', { replace: true });
-            }
-        } catch (err: any) {
-            const errorMessage = err.message || err.response?.data?.message || 'Failed to login. Please check your credentials.';
-            setAuthError(errorMessage);
-            if (import.meta.env.DEV) {
-                console.error('❌ Login failed:', errorMessage);
-            }
-        }
-    };
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
 
-    return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8">
-            <Card className="w-full max-w-md shadow-lg">
-                <CardHeader className="space-y-1">
-                    <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
-                    <CardDescription className="text-center">
-                        Enter your email to sign in to your account
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                            {isAuthenticated && user && (
-                                <Alert>
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertTitle>Already Logged In</AlertTitle>
-                                    <AlertDescription>
-                                        You are currently logged in as {user.full_name}. 
-                                        You can log in with a different account or{' '}
-                                        <Link to={`/${user.role}/dashboard`} className="font-semibold text-primary hover:underline">
-                                            go to your dashboard
-                                        </Link>.
-                                    </AlertDescription>
-                                </Alert>
-                            )}
-                            {authError && (
-                                <Alert variant="destructive">
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertTitle>Error</AlertTitle>
-                                    <AlertDescription>{authError}</AlertDescription>
-                                </Alert>
-                            )}
+    setLoading(true);
 
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Email</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="m@example.com" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+    try {
+      const user = await login({ email: formData.email, password: formData.password });
+      toast({
+        title: 'Success',
+        description: 'Login successful!',
+      });
+      // Navigate to role-based dashboard
+      const dashboardPath = `/${user.role}/dashboard`;
+      navigate(dashboardPath);
+    } catch (err: any) {
+      // Extract error message from multiple possible sources
+      let errorMessage = 'Login failed. Please try again.';
+      
+      // Try to get error message from various sources (in order of priority)
+      if (err?.response?.data?.message) {
+        errorMessage = String(err.response.data.message);
+      } else if (err?.response?.data?.error) {
+        errorMessage = String(err.response.data.error);
+      } else if (err?.message) {
+        errorMessage = String(err.message);
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
+      
+      // Ensure error message is not empty
+      if (!errorMessage || errorMessage.trim().length === 0) {
+        errorMessage = 'Login failed. Please check your credentials and try again.';
+      }
+      
+      // CRITICAL: Set error state immediately and ensure it persists
+      const finalErrorMessage = errorMessage.trim();
+      
+      // Set in ref first (persists immediately)
+      errorRef.current = finalErrorMessage;
+      
+      // Then set in state (triggers re-render)
+      setError(finalErrorMessage);
+      
+      // Also show toast notification as backup (ensures user sees error)
+      toast({
+        title: 'Login Failed',
+        description: finalErrorMessage,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                            <FormField
-                                control={form.control}
-                                name="password"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Password</FormLabel>
-                                        <FormControl>
-                                            <Input type="password" placeholder="••••••" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                        <div className="flex justify-end">
-                                            <Link
-                                                to="/forgot-password"
-                                                className="text-sm font-medium text-primary hover:underline px-0"
-                                            >
-                                                Forgot password?
-                                            </Link>
-                                        </div>
-                                    </FormItem>
-                                )}
-                            />
-
-                            <Button
-                                type="submit"
-                                className="w-full"
-                                disabled={form.formState.isSubmitting}
-                            >
-                                {form.formState.isSubmitting ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Signing in...
-                                    </>
-                                ) : (
-                                    'Sign In'
-                                )}
-                            </Button>
-                        </form>
-                    </Form>
-                </CardContent>
-                <CardFooter className="flex flex-col space-y-2 text-center text-sm text-gray-500">
-                    <div>
-                        Don&apos;t have an account?{' '}
-                        <Link to="/register" className="font-semibold text-primary hover:underline">
-                            Sign up
-                        </Link>
-                    </div>
-                </CardFooter>
-            </Card>
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 py-12 px-4">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+          <p className="text-gray-600">Login to your Cricket 360 account</p>
         </div>
-    );
-};
 
-export default Login;
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* Error Message - Display at top of form card - MUST BE VISIBLE */}
+          {(error || errorRef.current) && (error || errorRef.current).trim().length > 0 && (
+            <div 
+              key={`error-${error || errorRef.current}`}
+              className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-md"
+              style={{ display: 'block', visibility: 'visible', opacity: 1 }}
+            >
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm font-medium text-red-800 flex-1">{error || errorRef.current}</p>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  fieldErrors.email 
+                    ? 'border-red-500 focus:ring-red-500' 
+                    : 'border-gray-300 focus:ring-green-500'
+                }`}
+                placeholder="john@example.com"
+              />
+              {fieldErrors.email && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors pr-10 ${
+                    fieldErrors.password 
+                      ? 'border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 focus:ring-green-500'
+                  }`}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              {fieldErrors.password && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-sm font-medium text-green-600 hover:text-green-700"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-gray-600">
+            Don't have an account?{' '}
+            <Link to="/register" className="font-medium text-green-600 hover:text-green-700">
+              Register here
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

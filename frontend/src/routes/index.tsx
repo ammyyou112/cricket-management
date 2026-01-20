@@ -34,14 +34,18 @@ const PerformanceStats = lazy(() => import('../pages/player/PerformanceStats'));
 
 // -- Captain Routes --
 const CaptainDashboard = lazy(() => import('../pages/captain/CaptainDashboard'));
+const CaptainProfile = lazy(() => import('../pages/captain/CaptainProfile'));
 const TeamManagement = lazy(() => import('../pages/captain/TeamManagement'));
 const CreateTeam = lazy(() => import('../pages/captain/CreateTeam'));
 const PlayerRequests = lazy(() => import('../pages/captain/PlayerRequests'));
 const InvitePlayers = lazy(() => import('../pages/captain/InvitePlayers'));
 const TeamMatches = lazy(() => import('../pages/captain/TeamMatches'));
+const CaptainScheduleMatch = lazy(() => import('../pages/captain/ScheduleMatch'));
 const MatchControl = lazy(() => import('../pages/captain/MatchControl'));
 const UpdateMatchResult = lazy(() => import('../pages/captain/UpdateMatchResult'));
 const TeamStatistics = lazy(() => import('../pages/captain/TeamStatistics'));
+const ScoreVerification = lazy(() => import('../pages/captain/ScoreVerification'));
+const ApprovalRequests = lazy(() => import('../pages/captain/ApprovalRequests'));
 
 // -- Admin Routes --
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
@@ -186,14 +190,18 @@ const AppRoutes = () => {
             ),
             children: [
                 { path: 'dashboard', element: <CaptainDashboard /> },
+                { path: 'profile', element: <CaptainProfile /> },
                 { path: 'team', element: <TeamManagement /> },
                 { path: 'team/create', element: <CreateTeam /> },
                 { path: 'team-management', element: <TeamManagement /> },
                 { path: 'requests', element: <PlayerRequests /> },
                 { path: 'invite', element: <InvitePlayers /> },
+                { path: 'schedule-match', element: <CaptainScheduleMatch /> },
                 { path: 'matches', element: <TeamMatches /> }, // View team matches
                 { path: 'match/:id/update-result', element: <UpdateMatchResult /> },
                 { path: 'match-control', element: <MatchControl /> }, // "Day of Match" control
+                { path: 'score-verification', element: <ScoreVerification /> },
+                { path: 'approval-requests', element: <ApprovalRequests /> },
                 { path: 'stats', element: <TeamStatistics /> },
                 { path: '', element: <Navigate to="dashboard" replace /> }
             ]

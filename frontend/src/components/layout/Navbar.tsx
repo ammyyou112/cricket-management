@@ -55,7 +55,7 @@ export const Navbar = () => {
                     </Link>
 
                     {/* Desktop Navigation */}
-                    <div className="hidden md:block">
+                    {/* <div className="hidden md:block">
                         <div className="ml-10 flex items-baseline space-x-4">
                             {navLinks.map((link) => (
                                 <Link
@@ -67,7 +67,7 @@ export const Navbar = () => {
                                 </Link>
                             ))}
                         </div>
-                    </div>
+                    </div> */}
 
                     {/* User Menu (Desktop) */}
                     <div className="hidden md:block">
@@ -126,7 +126,7 @@ export const Navbar = () => {
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
                 <div className="md:hidden bg-background border-t">
-                    <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                    {/* <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
                         {navLinks.map((link) => (
                             <Link
                                 key={link.path}
@@ -147,7 +147,7 @@ export const Navbar = () => {
                                 </Button>
                             </div>
                         )}
-                    </div>
+                    </div> */}
                     {user && (
                         <div className="pt-4 pb-4 border-t border-border">
                             <div className="flex items-center px-5">

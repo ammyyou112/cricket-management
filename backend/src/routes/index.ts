@@ -13,6 +13,9 @@ import matchRoutes from './match.routes';
 import uploadRoutes from './upload.routes';
 import socketRoutes from './socket.routes';
 import aiRoutes from './ai.routes';
+import scoringRoutes from './scoring.routes';
+import verificationRoutes from './verification.routes';
+import approvalRoutes from './approval.routes';
 
 const router = Router();
 
@@ -32,6 +35,9 @@ router.get('/', (req, res) => {
       upload: `${APP_CONFIG.API_PREFIX}/upload`,
       socket: `${APP_CONFIG.API_PREFIX}/socket`,
       ai: `${APP_CONFIG.API_PREFIX}/ai`,
+      scoring: `${APP_CONFIG.API_PREFIX}/scoring`,
+      verification: `${APP_CONFIG.API_PREFIX}/verification`,
+      approval: `${APP_CONFIG.API_PREFIX}/approval`,
     },
   });
 });
@@ -45,6 +51,9 @@ router.use('/matches', matchRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/socket', socketRoutes);
 router.use('/ai', aiRoutes);
+router.use('/scoring', scoringRoutes);
+router.use('/verification', verificationRoutes);
+router.use('/approval', approvalRoutes);
 
 export default router;
 

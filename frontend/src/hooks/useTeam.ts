@@ -49,16 +49,12 @@ export const useTeamMembers = (teamId?: string) => {
         queryKey: ['teamMembers', teamId],
         queryFn: async () => {
             if (!teamId) {
-                console.log('⚠️ useTeamMembers: No teamId provided');
                 throw new Error('Team ID required');
             }
-            console.log('🔍 useTeamMembers: Fetching members for team:', teamId);
             const result = await teamApi.getTeamMembers(teamId);
             if (result.error) {
-                console.error('❌ useTeamMembers: API error:', result.error);
                 throw new Error(result.error);
             }
-            console.log('✅ useTeamMembers: Received members:', result.data?.length || 0, result.data);
             return result.data || [];
         },
         enabled: !!teamId,
@@ -70,14 +66,11 @@ export const useJoinRequests = (teamId?: string) => {
         queryKey: ['teamRequests', teamId],
         queryFn: async () => {
             if (!teamId) {
-                console.log('⚠️ useJoinRequests: No teamId provided');
                 throw new Error('Team ID required');
             }
-            console.log('🔍 useJoinRequests: Fetching requests for team:', teamId);
             // Use the new teamService
             const { teamService } = await import('../services/team.service');
             const requests = await teamService.getPendingRequests(teamId);
-            console.log('✅ useJoinRequests: Received requests:', requests?.length || 0, requests);
             return requests || [];
         },
         enabled: !!teamId,

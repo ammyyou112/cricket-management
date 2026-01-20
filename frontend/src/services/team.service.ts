@@ -54,6 +54,19 @@ export const teamService = {
   },
 
   /**
+   * Get team members
+   */
+  getTeamMembers: async (teamId: string) => {
+    const { data, error } = await apiClient.get<TeamMember[]>(`/teams/${teamId}/members`);
+    
+    if (error) {
+      throw new Error(error);
+    }
+
+    return data || [];
+  },
+
+  /**
    * Create a new team
    */
   create: async (data: CreateTeamInput) => {
@@ -121,10 +134,12 @@ export const teamService = {
 
   /**
    * Invite member to team
+   * @param teamId - Team ID
+   * @param userId - User ID of the player to invite
    */
-  inviteMember: async (teamId: string, email: string) => {
+  inviteMember: async (teamId: string, userId: string) => {
     const { data, error } = await apiClient.post<TeamMember>(`/teams/${teamId}/invite`, {
-      email,
+      userId,
     });
     
     if (error) {
@@ -139,10 +154,23 @@ export const teamService = {
   },
 
   /**
-   * Remove member from team
+   * Remove member from team (captain/admin only)
    */
   removeMember: async (teamId: string, userId: string) => {
     const { error } = await apiClient.delete(`/teams/${teamId}/members/${userId}`);
+    
+    if (error) {
+      throw new Error(error);
+    }
+
+    return true;
+  },
+
+  /**
+   * Leave team (player-initiated)
+   */
+  leaveTeam: async (teamId: string) => {
+    const { error } = await apiClient.post(`/teams/${teamId}/leave`);
     
     if (error) {
       throw new Error(error);

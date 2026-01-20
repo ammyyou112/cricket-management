@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { MatchService } from '@/services/match.service';
 import { ResponseUtil } from '@/utils/response';
 import logger from '@/utils/logger';
+import { prisma } from '@/config/database';
+import { ForbiddenError } from '@/utils/errors';
 
 export class MatchController {
   /**
@@ -14,9 +16,32 @@ export class MatchController {
     next: NextFunction
   ): Promise<void> {
     try {
+      const userId = (req as any).userId;
+      const userRole = (req as any).userRole;
+      const { teamAId, teamBId } = req.body;
+
+      // ✅ Allow ADMIN and CAPTAIN
+      if (!['ADMIN', 'CAPTAIN'].includes(userRole)) {
+        throw new ForbiddenError('Only administrators and team captains can schedule matches');
+      }
+
+      // ✅ If captain, must be captain of one of the teams
+      if (userRole === 'CAPTAIN') {
+        const userTeams = await prisma.team.findMany({
+          where: { captainId: userId },
+          select: { id: true }
+        });
+        
+        const userTeamIds = userTeams.map(t => t.id);
+        
+        if (!userTeamIds.includes(teamAId) && !userTeamIds.includes(teamBId)) {
+          throw new ForbiddenError('You can only schedule matches for teams you captain');
+        }
+      }
+
       const match = await MatchService.createMatch(req.body);
 
-      logger.info(`Match created: ${match.id} - ${match.venue}`);
+      logger.info(`Match created: ${match.id} - ${match.venue} by ${userRole} ${userId}`);
 
       ResponseUtil.created(res, match, 'Match created successfully');
       return;
@@ -36,8 +61,10 @@ export class MatchController {
     next: NextFunction
   ): Promise<void> {
     try {
+      logger.info(`Fetching matches with query: ${JSON.stringify(req.query)}`);
       const result = await MatchService.getMatches(req.query);
 
+      logger.info(`Successfully fetched ${result.matches.length} matches`);
       ResponseUtil.paginated(
         res,
         result.matches,
@@ -49,7 +76,8 @@ export class MatchController {
         'Matches retrieved successfully'
       );
       return;
-    } catch (error) {
+    } catch (error: any) {
+      logger.error(`Error fetching matches: ${error.message}`, { error, query: req.query });
       next(error);
       return;
     }

@@ -5,7 +5,6 @@ import AppRoutes from './routes';
 import { Toaster } from './components/ui/toaster';
 import { TooltipProvider } from './components/ui/tooltip';
 import { RoleSwitcher } from './components/dev/RoleSwitcher';
-import { runDiagnostics } from './utils/diagnostics';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -31,13 +30,6 @@ function App() {
         <>
           <ReactQueryDevtools initialIsOpen={false} />
           <RoleSwitcher />
-          <button
-            onClick={runDiagnostics}
-            className="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 hover:bg-red-700 font-semibold"
-            style={{ zIndex: 9999 }}
-          >
-            🔍 Run Diagnostics
-          </button>
         </>
       )}
     </QueryClientProvider>
