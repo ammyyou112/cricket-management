@@ -16,5 +16,15 @@ router.post('/:approvalId/respond', ApprovalController.respondToApproval);
 // Get pending approvals
 router.get('/pending', ApprovalController.getPendingApprovals);
 
+// New unified approval system endpoints
+// Request approval (supports all 3 types)
+router.post('/:matchId/request-new', ApprovalController.requestApproval);
+
+// Respond to approval (unified)
+router.post('/:approvalId/respond-new', ApprovalController.respondToApprovalNew);
+
+// Get pending approvals (unified)
+router.get('/pending-new', ApprovalController.getPendingApprovalsNew);
+
 export default router;
 

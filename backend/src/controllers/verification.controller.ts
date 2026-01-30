@@ -3,6 +3,7 @@ import { prisma } from '@/config/database';
 import { ResponseUtil } from '@/utils/response';
 import { NotFoundError, ForbiddenError, BadRequestError } from '@/utils/errors';
 import logger from '@/utils/logger';
+import { StatsService } from '@/services/stats.service';
 
 export class VerificationController {
   /**
@@ -239,22 +240,73 @@ export class VerificationController {
             ? verification.match.teamB.id
             : null;
 
-          // Update match status to completed
+          // Get current finalScoreApprovedBy array (it's stored as JSON)
+          // Fetch current match to get finalScoreApprovedBy
+          const currentMatch = await tx.match.findUnique({
+            where: { id: verification.matchId },
+            select: { finalScoreApprovedBy: true }
+          });
+          
+          let approvalsArray: string[] = [];
+          if (currentMatch?.finalScoreApprovedBy) {
+            const currentApprovals = currentMatch.finalScoreApprovedBy;
+            if (typeof currentApprovals === 'string') {
+              approvalsArray = JSON.parse(currentApprovals) as string[];
+            } else if (Array.isArray(currentApprovals)) {
+              // Type guard to ensure all elements are strings
+              approvalsArray = currentApprovals.filter((item): item is string => typeof item === 'string');
+            }
+          }
+          
+          // Add current captain if not already in array
+          if (!approvalsArray.includes(userId)) {
+            approvalsArray.push(userId);
+          }
+
+          // Check if both captains have approved
+          const bothCaptainsApproved = approvalsArray.length >= 2;
+
+          // Update match
           await tx.match.update({
             where: { id: verification.matchId },
             data: {
-              status: 'COMPLETED',
+              status: bothCaptainsApproved ? 'COMPLETED' : 'FINAL_PENDING',
               teamAScore: verification.teamAScore,
               teamBScore: verification.teamBScore,
               teamAWickets: verification.teamAWickets,
               teamBWickets: verification.teamBWickets,
-              winnerTeamId: winnerId
+              winnerTeamId: winnerId,
+              finalScoreApprovedBy: JSON.stringify(approvalsArray),
+              finalScoreApprovedAt: bothCaptainsApproved ? new Date() : null
             }
           });
+
+          return bothCaptainsApproved;
         });
 
+        // Calculate stats if match is completed
+        const match = await prisma.match.findUnique({
+          where: { id: verification.matchId },
+          select: { status: true }
+        });
+
+        if (match?.status === 'COMPLETED') {
+          try {
+            await StatsService.calculateStatsFromBalls(verification.matchId);
+            logger.info(`Stats calculated for match ${verification.matchId}`);
+          } catch (error) {
+            logger.error(`Failed to calculate stats for match ${verification.matchId}:`, error);
+            // Don't fail the request if stats calculation fails
+          }
+        }
+
         logger.info(`Score verified for match ${verification.matchId} by ${userId}`);
-        ResponseUtil.success(res, null, 'Score verified. Match completed.');
+        
+        if (match?.status === 'COMPLETED') {
+          ResponseUtil.success(res, null, 'Score verified. Match completed. Stats updated.');
+        } else {
+          ResponseUtil.success(res, null, 'Score verified. Waiting for opponent captain verification.');
+        }
       } else {
         // DISPUTE - Require reason
         if (!disputeReason || typeof disputeReason !== 'string' || disputeReason.trim().length < 10) {

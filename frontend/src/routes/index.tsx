@@ -20,6 +20,8 @@ const Teams = lazy(() => import('../pages/Teams'));
 const TeamDetails = lazy(() => import('../pages/TeamDetails'));
 const PlayerProfileView = lazy(() => import('../pages/shared/PlayerProfileView'));
 const LiveScoring = lazy(() => import('../pages/shared/LiveScoring'));
+const BallByBallScoring = lazy(() => import('../pages/shared/BallByBallScoring'));
+const MatchAuditLog = lazy(() => import('../pages/shared/MatchAuditLog'));
 
 // -- Player Routes --
 const PlayerDashboard = lazy(() => import('../pages/player/PlayerDashboard'));
@@ -46,6 +48,8 @@ const UpdateMatchResult = lazy(() => import('../pages/captain/UpdateMatchResult'
 const TeamStatistics = lazy(() => import('../pages/captain/TeamStatistics'));
 const ScoreVerification = lazy(() => import('../pages/captain/ScoreVerification'));
 const ApprovalRequests = lazy(() => import('../pages/captain/ApprovalRequests'));
+const ApprovalCenter = lazy(() => import('../pages/captain/ApprovalCenter'));
+const CaptainSettings = lazy(() => import('../pages/captain/CaptainSettings'));
 
 // -- Admin Routes --
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
@@ -202,6 +206,8 @@ const AppRoutes = () => {
                 { path: 'match-control', element: <MatchControl /> }, // "Day of Match" control
                 { path: 'score-verification', element: <ScoreVerification /> },
                 { path: 'approval-requests', element: <ApprovalRequests /> },
+                { path: 'approval-center', element: <ApprovalCenter /> },
+                { path: 'settings', element: <CaptainSettings /> },
                 { path: 'stats', element: <TeamStatistics /> },
                 { path: '', element: <Navigate to="dashboard" replace /> }
             ]
@@ -241,6 +247,28 @@ const AppRoutes = () => {
                 <ProtectedRoute allowedRoles={['captain', 'admin']}>
                     <DashboardLayout>
                         <LiveScoring />
+                    </DashboardLayout>
+                </ProtectedRoute>
+            )
+        },
+        // Ball-by-Ball Scoring Page
+        {
+            path: '/match/:matchId/ball-by-ball',
+            element: (
+                <ProtectedRoute allowedRoles={['captain', 'admin']}>
+                    <DashboardLayout>
+                        <BallByBallScoring />
+                    </DashboardLayout>
+                </ProtectedRoute>
+            )
+        },
+        // Match Audit Log
+        {
+            path: '/match/:matchId/audit',
+            element: (
+                <ProtectedRoute allowedRoles={['captain', 'admin']}>
+                    <DashboardLayout>
+                        <MatchAuditLog />
                     </DashboardLayout>
                 </ProtectedRoute>
             )

@@ -5,6 +5,9 @@
 
 import { prisma } from '@/config/database';
 import { NotFoundError } from '@/utils/errors';
+import { WicketType, AuditAction } from '@prisma/client';
+import { auditService } from './audit.service';
+import logger from '@/utils/logger';
 
 export interface PlayerStatsSummary {
   totalMatches: number;
@@ -149,5 +152,203 @@ export class StatsService {
     });
 
     return stats;
+  }
+
+  /**
+   * Calculate and update player stats from ball records
+   * Called when match is completed
+   */
+  static async calculateStatsFromBalls(matchId: string): Promise<void> {
+    try {
+      const match = await prisma.match.findUnique({
+        where: { id: matchId },
+        include: {
+          teamA: { select: { id: true } },
+          teamB: { select: { id: true } }
+        }
+      });
+
+      if (!match) {
+        throw new NotFoundError('Match not found');
+      }
+
+      // Only calculate if match is completed
+      if (match.status !== 'COMPLETED') {
+        throw new Error('Can only calculate stats for completed matches');
+      }
+
+      // Get all balls for this match
+      const balls = await prisma.ball.findMany({
+        where: { matchId },
+        orderBy: [
+          { innings: 'asc' },
+          { overNumber: 'asc' },
+          { ballNumber: 'asc' }
+        ]
+      });
+
+      if (balls.length === 0) {
+        logger.warn(`No balls found for match ${matchId}, skipping stats calculation`);
+        return;
+      }
+
+      // Calculate stats for each player
+      const playerStatsMap = new Map<string, {
+        playerId: string;
+        teamId: string;
+        runsScored: number;
+        ballsFaced: number;
+        fours: number;
+        sixes: number;
+        wicketsTaken: number;
+        oversBowled: number;
+        runsConceded: number;
+        catches: number;
+        stumpings: number;
+        runOuts: number;
+        isOut: boolean;
+      }>();
+
+      // Process each ball
+      for (const ball of balls) {
+        const innings = ball.innings;
+        const battingTeamId = innings === 1 ? match.teamAId : match.teamBId;
+        const bowlingTeamId = innings === 1 ? match.teamBId : match.teamAId;
+
+        // Batsman stats (striker)
+        const strikerStats = this.getOrCreatePlayerStats(
+          playerStatsMap,
+          ball.batsmanOnStrike,
+          battingTeamId
+        );
+        strikerStats.ballsFaced += (ball.isWide || ball.isNoBall) ? 0 : 1;
+        strikerStats.runsScored += ball.runs;
+        if (ball.runs === 4) strikerStats.fours++;
+        if (ball.runs === 6) strikerStats.sixes++;
+        if (ball.isWicket && ball.dismissedPlayer === ball.batsmanOnStrike) {
+          strikerStats.isOut = true;
+        }
+
+        // Bowler stats
+        const bowlerStats = this.getOrCreatePlayerStats(
+          playerStatsMap,
+          ball.bowler,
+          bowlingTeamId
+        );
+        if (!ball.isWide && !ball.isNoBall) {
+          bowlerStats.oversBowled += 1 / 6; // Add 1 ball (1/6 of an over)
+        }
+        bowlerStats.runsConceded += ball.runs;
+        if (ball.isWicket && ball.wicketType !== 'RUN_OUT' && ball.wicketType !== 'STUMPED') {
+          bowlerStats.wicketsTaken++;
+        }
+
+        // Fielder stats (for catches, run outs, stumpings)
+        if (ball.fielder) {
+          const fielderStats = this.getOrCreatePlayerStats(
+            playerStatsMap,
+            ball.fielder,
+            bowlingTeamId
+          );
+          if (ball.wicketType === 'CAUGHT') {
+            fielderStats.catches++;
+          } else if (ball.wicketType === 'RUN_OUT') {
+            fielderStats.runOuts++;
+          } else if (ball.wicketType === 'STUMPED') {
+            fielderStats.stumpings++;
+          }
+        }
+      }
+
+      // Convert overs to decimal format (e.g., 2.3 = 2 overs 3 balls)
+      for (const stats of playerStatsMap.values()) {
+        stats.oversBowled = Math.floor(stats.oversBowled) + (stats.oversBowled % 1) * 0.1;
+      }
+
+      // Save stats to database
+      await prisma.$transaction(async (tx: any) => {
+        for (const [playerId, stats] of playerStatsMap.entries()) {
+          await tx.playerStat.upsert({
+            where: {
+              playerId_matchId: {
+                playerId: stats.playerId,
+                matchId
+              }
+            },
+            update: {
+              runsScored: stats.runsScored,
+              ballsFaced: stats.ballsFaced,
+              fours: stats.fours,
+              sixes: stats.sixes,
+              wicketsTaken: stats.wicketsTaken,
+              oversBowled: stats.oversBowled,
+              runsConceded: stats.runsConceded,
+              catches: stats.catches,
+              stumpings: stats.stumpings,
+              runOuts: stats.runOuts
+            },
+            create: {
+              playerId: stats.playerId,
+              matchId,
+              teamId: stats.teamId,
+              runsScored: stats.runsScored,
+              ballsFaced: stats.ballsFaced,
+              fours: stats.fours,
+              sixes: stats.sixes,
+              wicketsTaken: stats.wicketsTaken,
+              oversBowled: stats.oversBowled,
+              runsConceded: stats.runsConceded,
+              catches: stats.catches,
+              stumpings: stats.stumpings,
+              runOuts: stats.runOuts
+            }
+          });
+        }
+      });
+
+      // Create audit log
+      await auditService.logAction({
+        matchId,
+        action: AuditAction.STATS_CALCULATED,
+        performedBy: 'SYSTEM',
+        newState: {
+          playersAffected: playerStatsMap.size,
+          ballsProcessed: balls.length
+        }
+      });
+
+      logger.info(`Stats calculated for match ${matchId}: ${playerStatsMap.size} players`);
+    } catch (error) {
+      logger.error(`Failed to calculate stats for match ${matchId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper: Get or create player stats in map
+   */
+  private static getOrCreatePlayerStats(
+    map: Map<string, any>,
+    playerId: string,
+    teamId: string
+  ) {
+    if (!map.has(playerId)) {
+      map.set(playerId, {
+        playerId,
+        teamId,
+        runsScored: 0,
+        ballsFaced: 0,
+        fours: 0,
+        sixes: 0,
+        wicketsTaken: 0,
+        oversBowled: 0,
+        runsConceded: 0,
+        catches: 0,
+        stumpings: 0,
+        runOuts: 0,
+        isOut: false
+      });
+    }
+    return map.get(playerId)!;
   }
 }

@@ -1,31 +1,40 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { matchService } from '@/services/match.service';
 import { teamService } from '@/services/team.service';
-import type { Match, Team } from '@/types/api.types';
+import { approvalService } from '@/services/approval.service';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Target, History, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import type { Match, Team, MatchStatus } from '@/types/api.types';
 
 export default function MatchDetails() {
-  const { id } = useParams<{ id: string }>();
+  const { id, matchId } = useParams<{ id?: string; matchId?: string }>();
+  const actualMatchId = matchId || id; // Use matchId if available, otherwise id
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast(); // Moved to top - must be called before any early returns
   const [match, setMatch] = useState<Match | null>(null);
   const [teamA, setTeamA] = useState<Team | null>(null);
   const [teamB, setTeamB] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [requestingApproval, setRequestingApproval] = useState(false); // Moved to top - must be called before any early returns
 
   useEffect(() => {
     const loadMatchData = async () => {
-      if (!id) return;
+      if (!actualMatchId) return;
 
       try {
         setLoading(true);
         setError(null);
         
-        console.log('🔍 Loading match data for:', id);
-        
         // Load match details
-        const matchData = await matchService.getById(id);
-        console.log('✅ Match loaded:', matchData);
+        const matchData = await matchService.getById(actualMatchId);
         setMatch(matchData);
         
         // Try to get teams from match data first (if backend includes them)
@@ -39,13 +48,11 @@ export default function MatchDetails() {
             teamService.getById(matchData.teamBId).catch(() => null),
           ]);
           
-          console.log('✅ Teams loaded:', { teamA: teamAData, teamB: teamBData });
           if (teamAData) setTeamA(teamAData);
           if (teamBData) setTeamB(teamBData);
         }
         
       } catch (err: any) {
-        console.error('❌ Failed to load match:', err);
         setError(err.response?.data?.message || err.message || 'Failed to load match');
       } finally {
         setLoading(false);
@@ -53,7 +60,7 @@ export default function MatchDetails() {
     };
 
     loadMatchData();
-  }, [id]);
+  }, [actualMatchId]);
 
   if (loading) {
     return (
@@ -86,6 +93,41 @@ export default function MatchDetails() {
 
   const teamAName = teamA?.name || teamA?.teamName || 'Team A';
   const teamBName = teamB?.name || teamB?.teamName || 'Team B';
+
+  // Check if user is captain of one of the teams
+  const isTeamACaptain = teamA?.captainId === user?.id;
+  const isTeamBCaptain = teamB?.captainId === user?.id;
+  const isCaptain = isTeamACaptain || isTeamBCaptain;
+
+  const handleRequestApproval = async (type: 'START_SCORING' | 'START_SECOND_INNINGS' | 'FINAL_SCORE') => {
+    if (!actualMatchId) return;
+    
+    setRequestingApproval(true);
+    try {
+      await approvalService.requestApproval(actualMatchId, type);
+      toast({
+        title: 'Success',
+        description: 'Approval request sent to opponent captain',
+      });
+      // Reload match to get updated status
+      const matchData = await matchService.getById(actualMatchId);
+      setMatch(matchData);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to request approval',
+        variant: 'destructive',
+      });
+    } finally {
+      setRequestingApproval(false);
+    }
+  };
+
+  // Determine which approval actions are available based on match status
+  const canRequestStartScoring = match.status === 'SCHEDULED' && isCaptain;
+  const canRequestSecondInnings = match.status === 'FIRST_INNINGS' && isCaptain;
+  const canRequestFinalScore = match.status === 'SECOND_INNINGS' && isCaptain;
+  const isPendingApproval = match.status === 'SCORING_PENDING' || match.status === 'SECOND_INNINGS_PENDING' || match.status === 'FINAL_PENDING';
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
@@ -145,6 +187,160 @@ export default function MatchDetails() {
           </div>
         </div>
       </div>
+
+      {/* Approval Status Alert */}
+      {isPendingApproval && (
+        <Alert className="mb-6">
+          <Clock className="h-4 w-4" />
+          <AlertDescription>
+            {match.status === 'SCORING_PENDING' && 'Waiting for opponent captain to approve start of scoring...'}
+            {match.status === 'SECOND_INNINGS_PENDING' && 'Waiting for opponent captain to approve start of second innings...'}
+            {match.status === 'FINAL_PENDING' && 'Waiting for opponent captain to approve final score...'}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Match Actions */}
+      {(user?.role === 'captain' || user?.role === 'admin') && (
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-2xl font-bold mb-4">Match Actions</h2>
+          
+          {/* Approval Request Buttons */}
+          {isCaptain && (
+            <div className="mb-6 space-y-3">
+              {canRequestStartScoring && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold mb-1">Request to Start Scoring</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Request approval from opponent captain to begin ball-by-ball scoring
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleRequestApproval('START_SCORING')}
+                        disabled={requestingApproval}
+                      >
+                        {requestingApproval ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Requesting...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Request Approval
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {canRequestSecondInnings && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold mb-1">Request to Start Second Innings</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Request approval from opponent captain to begin second innings
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleRequestApproval('START_SECOND_INNINGS')}
+                        disabled={requestingApproval}
+                      >
+                        {requestingApproval ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Requesting...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Request Approval
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {canRequestFinalScore && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold mb-1">Request Final Score Approval</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Request approval from opponent captain to finalize match score
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleRequestApproval('FINAL_SCORE')}
+                        disabled={requestingApproval}
+                      >
+                        {requestingApproval ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Requesting...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Request Approval
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(match.status === 'FIRST_INNINGS' || match.status === 'SECOND_INNINGS') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Ball-by-Ball Scoring
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Enter balls one by one with detailed tracking of runs, wickets, and extras.
+                  </p>
+                  <Button asChild className="w-full">
+                    <Link to={`/match/${actualMatchId}/ball-by-ball`}>Open Scoring</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Audit Log
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  View complete history of all actions and changes made during this match.
+                </p>
+                <Button asChild variant="outline" className="w-full">
+                  <Link to={`/match/${actualMatchId}/audit`}>View Audit Log</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
       {/* Match Stats */}
       <div className="bg-white p-6 rounded-lg shadow">

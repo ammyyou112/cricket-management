@@ -16,6 +16,9 @@ import aiRoutes from './ai.routes';
 import scoringRoutes from './scoring.routes';
 import verificationRoutes from './verification.routes';
 import approvalRoutes from './approval.routes';
+import ballByBallRoutes from './ballByBall.routes';
+import settingsRoutes from './settings.routes';
+import auditRoutes from './audit.routes';
 
 const router = Router();
 
@@ -38,6 +41,9 @@ router.get('/', (req, res) => {
       scoring: `${APP_CONFIG.API_PREFIX}/scoring`,
       verification: `${APP_CONFIG.API_PREFIX}/verification`,
       approval: `${APP_CONFIG.API_PREFIX}/approval`,
+      balls: `${APP_CONFIG.API_PREFIX}/balls`,
+      settings: `${APP_CONFIG.API_PREFIX}/settings`,
+      audit: `${APP_CONFIG.API_PREFIX}/audit`,
     },
   });
 });
@@ -54,6 +60,9 @@ router.use('/ai', aiRoutes);
 router.use('/scoring', scoringRoutes);
 router.use('/verification', verificationRoutes);
 router.use('/approval', approvalRoutes);
+router.use('/balls', ballByBallRoutes);
+router.use('/settings', settingsRoutes);
+router.use('/audit', auditRoutes);
 
 export default router;
 

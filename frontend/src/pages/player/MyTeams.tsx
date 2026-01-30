@@ -9,15 +9,18 @@ import { Badge } from '../../components/ui/badge';
 import { Skeleton } from '../../components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { useToast } from '../../components/ui/use-toast';
-import { LogOut, Eye, Shield } from 'lucide-react';
-import type { Team } from '../../types/api.types';
+import { LogOut, Eye, Shield, Clock, X } from 'lucide-react';
+import type { Team, TeamMember } from '../../types/api.types';
+import { format } from 'date-fns';
 
 const MyTeams = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const { toast } = useToast();
     const [teams, setTeams] = useState<Team[]>([]);
+    const [pendingRequests, setPendingRequests] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingPending, setLoadingPending] = useState(false);
 
     useEffect(() => {
         const loadMyTeams = async () => {
@@ -43,6 +46,28 @@ const MyTeams = () => {
         }
     }, [user?.id, toast]);
 
+    useEffect(() => {
+        const loadPendingRequests = async () => {
+            try {
+                setLoadingPending(true);
+                const requests = await teamService.getMyPendingRequests();
+                setPendingRequests(requests || []);
+            } catch (err: any) {
+                toast({
+                    title: 'Error',
+                    description: err.message || 'Failed to load pending requests',
+                    variant: 'destructive',
+                });
+            } finally {
+                setLoadingPending(false);
+            }
+        };
+
+        if (user?.id) {
+            loadPendingRequests();
+        }
+    }, [user?.id, toast]);
+
     const handleLeaveTeam = async (teamId: string, teamName: string) => {
         if (!confirm(`Are you sure you want to leave "${teamName}"?`)) {
             return;
@@ -61,6 +86,29 @@ const MyTeams = () => {
             toast({
                 title: 'Error',
                 description: err.message || 'Failed to leave team',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    const handleCancelRequest = async (request: TeamMember) => {
+        if (!confirm(`Are you sure you want to cancel your request to join "${request.team?.teamName || 'this team'}"?`)) {
+            return;
+        }
+
+        try {
+            // Update status to REJECTED (or delete the request)
+            await teamService.updateMemberStatus(request.teamId, user!.id, 'REJECTED');
+            toast({
+                title: 'Success',
+                description: 'Join request cancelled',
+            });
+            // Remove from state
+            setPendingRequests(pendingRequests.filter(r => r.id !== request.id));
+        } catch (err: any) {
+            toast({
+                title: 'Error',
+                description: err.message || 'Failed to cancel request',
                 variant: 'destructive',
             });
         }
@@ -162,10 +210,83 @@ const MyTeams = () => {
                     )}
                 </TabsContent>
 
-                <TabsContent value="pending">
-                    <div className="py-12 text-center text-muted-foreground">
-                        Feature coming soon. (Requires API update to fetch pending requests)
-                    </div>
+                <TabsContent value="pending" className="mt-6">
+                    {loadingPending ? (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {[1, 2, 3].map((i) => (
+                                <Skeleton key={i} className="h-48 w-full rounded-xl" />
+                            ))}
+                        </div>
+                    ) : pendingRequests.length > 0 ? (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {pendingRequests.map((request) => (
+                                <Card key={request.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                                    <CardHeader className="flex flex-row items-center gap-4">
+                                        <Avatar className="h-14 w-14 border">
+                                            <AvatarImage src={request.team?.logoUrl || undefined} />
+                                            <AvatarFallback>
+                                                {(request.team?.teamName || 'TM').substring(0, 2).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="space-y-1">
+                                            <CardTitle>{request.team?.teamName || 'Unnamed Team'}</CardTitle>
+                                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                                                <Clock className="mr-1 h-3 w-3" />
+                                                Pending
+                                            </Badge>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-sm text-muted-foreground line-clamp-2">
+                                            {request.team?.description || "A competitive cricket team."}
+                                        </p>
+                                        {request.team?.captain && (
+                                            <p className="text-xs text-muted-foreground mt-2">
+                                                Captain: {request.team.captain.fullName || request.team.captain.full_name}
+                                            </p>
+                                        )}
+                                        {request.createdAt && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Requested: {format(new Date(request.createdAt), 'MMM dd, yyyy')}
+                                            </p>
+                                        )}
+                                    </CardContent>
+                                    <CardFooter className="flex justify-between gap-2">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="w-full" 
+                                            onClick={() => navigate(`/teams/${request.teamId}`)}
+                                        >
+                                            <Eye className="mr-2 h-4 w-4" />
+                                            View Team
+                                        </Button>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="w-full text-destructive hover:text-destructive hover:bg-destructive/10" 
+                                            onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                handleCancelRequest(request); 
+                                            }}
+                                        >
+                                            <X className="mr-2 h-4 w-4" />
+                                            Cancel
+                                        </Button>
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-16 text-center border rounded-lg bg-slate-50 border-dashed">
+                            <Clock className="h-12 w-12 text-muted-foreground mb-4" />
+                            <h3 className="text-lg font-medium">No pending requests</h3>
+                            <p className="text-muted-foreground max-w-sm mb-6">
+                                You don't have any pending join requests. Browse teams and send requests to join.
+                            </p>
+                            <Button onClick={() => navigate('/player/teams')}>Browse Teams</Button>
+                        </div>
+                    )}
                 </TabsContent>
             </Tabs>
         </div>

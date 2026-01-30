@@ -12,6 +12,7 @@ import { APP_CONFIG } from '@/config/constants';
 import logger from '@/utils/logger';
 import router from '@/routes';
 import { initializeSocket } from '@/sockets/socket';
+import { startAutoApprovalJob } from '@/jobs/autoApproval.job';
 
 // Load environment variables
 dotenv.config();
@@ -48,6 +49,9 @@ const startServer = async () => {
   try {
     // Connect to database
     await connectDatabase();
+
+    // Start auto-approval background job
+    startAutoApprovalJob();
 
     // Start HTTP server (with Socket.io)
     httpServer.listen(Number(APP_CONFIG.PORT), APP_CONFIG.HOST as string, () => {
