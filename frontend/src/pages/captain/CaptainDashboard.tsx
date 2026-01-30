@@ -4,12 +4,13 @@ import { useAuth } from '../../hooks/useAuth';
 import { teamService } from '../../services/team.service';
 import { matchService } from '../../services/match.service';
 import { tournamentService } from '../../services/tournament.service';
+import { approvalService } from '../../services/approval.service';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Skeleton } from '../../components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
-import { Shield, Users, Calendar, BarChart2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Shield, Users, Calendar, BarChart2, AlertCircle, ArrowRight, CheckCircle2, Settings } from 'lucide-react';
 import type { Team, Match, Tournament, PaginatedResponse } from '../../types/api.types';
 
 const CaptainDashboard = () => {
@@ -18,6 +19,7 @@ const CaptainDashboard = () => {
     const [matches, setMatches] = useState<Match[]>([]);
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
+    const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +35,14 @@ const CaptainDashboard = () => {
                     matchService.getAll({ page: 1, limit: 50 }),
                     tournamentService.getAll({ page: 1, limit: 10, status: 'ONGOING' }),
                 ]);
+
+                // Fetch pending approvals immediately
+                try {
+                    const pendingApprovals = await approvalService.getPendingApprovalsNew();
+                    setPendingApprovalsCount(pendingApprovals.length || 0);
+                } catch (err) {
+                    setPendingApprovalsCount(0);
+                }
 
                 // Extract teams data to outer scope
                 let teamsData: Team[] = [];
@@ -107,6 +117,18 @@ const CaptainDashboard = () => {
 
         if (user?.id) {
             fetchCaptainData();
+            
+            // Set up interval to refresh pending approvals count every 30 seconds
+            const interval = setInterval(async () => {
+                try {
+                    const pendingApprovals = await approvalService.getPendingApprovalsNew();
+                    setPendingApprovalsCount(pendingApprovals.length || 0);
+                } catch (err) {
+                    // Silently fail - don't update count on error
+                }
+            }, 30000); // 30 seconds
+
+            return () => clearInterval(interval);
         }
     }, [user?.id]);
 
@@ -165,7 +187,7 @@ const CaptainDashboard = () => {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Captain's Dashboard</h1>
-                    <p className="text-muted-foreground">Manage {captainTeam.team_name} and lead your squad to victory.</p>
+                    <p className="text-muted-foreground">Manage {captainTeam.teamName || captainTeam.name || 'your team'} and lead your squad to victory.</p>
                 </div>
                 <Button asChild>
                     <Link to="/captain/match-control">Match Control</Link>
@@ -193,6 +215,25 @@ const CaptainDashboard = () => {
                     </CardContent>
                 </Card>
 
+                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => window.location.href = '/captain/approval-center'}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Approval Center</CardTitle>
+                        <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-baseline gap-2">
+                            <div className="text-2xl font-bold">{pendingApprovalsCount}</div>
+                            {pendingApprovalsCount > 0 && (
+                                <Badge variant="destructive" className="ml-2">Action Required</Badge>
+                            )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Pending match approvals</p>
+                        <Button variant="link" className="px-0 h-auto mt-2 text-xs" asChild>
+                            <Link to="/captain/approval-center">View Approvals <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Upcoming Matches</CardTitle>
@@ -214,15 +255,43 @@ const CaptainDashboard = () => {
                         <p className="text-xs text-muted-foreground">Win/Loss Ratio (Coming Soon)</p>
                     </CardContent>
                 </Card>
+            </div>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Captaincy</CardTitle>
-                        <Shield className="h-4 w-4 text-muted-foreground" />
+            {/* Quick Actions */}
+            <div className="grid gap-4 md:grid-cols-2">
+                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => window.location.href = '/captain/approval-center'}>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <CheckCircle2 className="h-5 w-5" />
+                            Approval Center
+                        </CardTitle>
+                        <CardDescription>Manage match approval requests</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">Active</div>
-                        <p className="text-xs text-muted-foreground">Status</p>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            View and respond to approval requests for match start, second innings, and final score verification.
+                        </p>
+                        <Button asChild variant="outline" className="w-full">
+                            <Link to="/captain/approval-center">Open Approval Center <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => window.location.href = '/captain/settings'}>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Settings className="h-5 w-5" />
+                            Captain Settings
+                        </CardTitle>
+                        <CardDescription>Configure approval preferences</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            Set auto-approval timeout and notification preferences for match approvals.
+                        </p>
+                        <Button asChild variant="outline" className="w-full">
+                            <Link to="/captain/settings">Open Settings <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                        </Button>
                     </CardContent>
                 </Card>
             </div>

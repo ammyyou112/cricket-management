@@ -25,6 +25,9 @@ router.get('/my-teams', TeamController.getMyTeams);
 // Get player invitations (before /:id to avoid route conflict)
 router.get('/invitations/my', TeamController.getMyInvitations);
 
+// Get player's pending join requests (before /:id to avoid route conflict)
+router.get('/requests/my', TeamController.getMyPendingRequests);
+
 // Get all teams (with filters)
 router.get('/', validate(getTeamsSchema), TeamController.getTeams);
 

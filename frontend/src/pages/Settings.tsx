@@ -30,6 +30,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Skeleton } from '../components/ui/skeleton';
 import { useToast } from '../components/ui/use-toast';
 import { Loader2, Camera, User, Mail, Phone, Shield, Lock, Image as ImageIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import CaptainSettings from './captain/CaptainSettings';
 
 // Profile form schema
 const profileFormSchema = z.object({
@@ -71,7 +73,7 @@ const Settings = () => {
     const teamLogoFileInputRef = useRef<HTMLInputElement>(null);
 
     // Get captain's team (if user is captain)
-    const captainTeam = myTeams?.find(t => t.captain_id === user?.id);
+    const captainTeam = myTeams?.find(t => t.captainId === user?.id || t.captain_id === user?.id);
     
     // Sync profile picture URL with user state
     useEffect(() => {
@@ -237,6 +239,9 @@ const Settings = () => {
                     <TabsTrigger value="profile">Profile</TabsTrigger>
                     <TabsTrigger value="password">Password</TabsTrigger>
                     {captainTeam && <TabsTrigger value="team">Team</TabsTrigger>}
+                    {(captainTeam || user?.role === 'CAPTAIN' || user?.role === 'captain') && (
+                        <TabsTrigger value="captain">Captain Settings</TabsTrigger>
+                    )}
                 </TabsList>
 
                 {/* Profile Tab */}
@@ -480,6 +485,13 @@ const Settings = () => {
                                 </div>
                             </CardContent>
                         </Card>
+                    </TabsContent>
+                )}
+
+                {/* Captain Settings Tab */}
+                {(captainTeam || user?.role === 'CAPTAIN' || user?.role === 'captain') && (
+                    <TabsContent value="captain" className="space-y-6">
+                        <CaptainSettings />
                     </TabsContent>
                 )}
             </Tabs>

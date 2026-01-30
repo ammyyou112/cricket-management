@@ -273,5 +273,18 @@ export const teamService = {
 
     return data || [];
   },
+
+  /**
+   * Get player's pending join requests (PENDING status for logged-in player)
+   */
+  getMyPendingRequests: async () => {
+    const { data, error } = await apiClient.get<TeamMember[]>(`/teams/requests/my`);
+    
+    if (error) {
+      throw new Error(error);
+    }
+
+    return data || [];
+  },
 };
 

@@ -768,6 +768,41 @@ export class TeamService {
   }
 
   /**
+   * Get player's pending join requests (PENDING status for a specific player)
+   */
+  static async getPlayerPendingRequests(playerId: string): Promise<TeamMember[]> {
+    const pendingRequests = await prisma.teamMember.findMany({
+      where: {
+        playerId,
+        status: TeamMemberStatus.PENDING,
+      },
+      include: {
+        team: {
+          select: {
+            id: true,
+            teamName: true,
+            logoUrl: true,
+            description: true,
+            city: true,
+            captain: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return pendingRequests;
+  }
+
+  /**
    * Get team members (ACTIVE members only for squad display)
    */
   static async getTeamMembers(teamId: string): Promise<TeamMember[]> {
@@ -1010,6 +1045,13 @@ export class TeamService {
     if (isMemberThemselves && member.status === TeamMemberStatus.INVITED) {
       if (newStatus !== TeamMemberStatus.ACTIVE && newStatus !== TeamMemberStatus.REJECTED) {
         throw new BadRequestError('You can only accept (ACTIVE) or reject (REJECTED) invitations');
+      }
+    }
+
+    // If member is canceling their own pending request
+    if (isMemberThemselves && member.status === TeamMemberStatus.PENDING) {
+      if (newStatus !== TeamMemberStatus.REJECTED) {
+        throw new BadRequestError('You can only cancel (REJECTED) your pending requests');
       }
     }
 

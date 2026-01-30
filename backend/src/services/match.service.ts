@@ -252,6 +252,7 @@ export class MatchService {
             id: true,
             teamName: true,
             logoUrl: true,
+            captainId: true,
             captain: {
               select: {
                 id: true,
@@ -265,6 +266,7 @@ export class MatchService {
             id: true,
             teamName: true,
             logoUrl: true,
+            captainId: true,
             captain: {
               select: {
                 id: true,

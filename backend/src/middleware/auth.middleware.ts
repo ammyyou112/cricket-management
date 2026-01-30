@@ -3,6 +3,7 @@ import { JwtUtil } from '@/utils/jwt';
 import { UnauthorizedError, ForbiddenError } from '@/utils/errors';
 import { prisma } from '@/config/database';
 import { UserRole } from '@prisma/client';
+import { retryDbOperation } from '@/utils/dbRetry';
 
 /**
  * Authenticate user from JWT token
@@ -25,10 +26,12 @@ export const authenticate = async (
     // Verify token
     const payload = JwtUtil.verifyAccessToken(token);
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-    });
+    // Get user from database with retry logic
+    const user = await retryDbOperation(
+      () => prisma.user.findUnique({
+        where: { id: payload.userId },
+      })
+    );
 
     if (!user) {
       throw new UnauthorizedError('User not found');
@@ -82,9 +85,11 @@ export const optionalAuth = async (
       const token = authHeader.substring(7);
       const payload = JwtUtil.verifyAccessToken(token);
 
-      const user = await prisma.user.findUnique({
-        where: { id: payload.userId },
-      });
+      const user = await retryDbOperation(
+        () => prisma.user.findUnique({
+          where: { id: payload.userId },
+        })
+      );
 
       if (user) {
         (req as any).user = user;

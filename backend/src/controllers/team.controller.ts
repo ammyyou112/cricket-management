@@ -453,5 +453,28 @@ export class TeamController {
       return;
     }
   }
+
+  /**
+   * Get player's pending join requests (PENDING status for logged-in player)
+   * GET /api/v1/teams/requests/my
+   */
+  static async getMyPendingRequests(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = (req as any).userId;
+      const pendingRequests = await TeamService.getPlayerPendingRequests(userId);
+
+      logger.info(`Fetched ${pendingRequests.length} pending requests for player ${userId}`);
+
+      ResponseUtil.success(res, pendingRequests, 'Pending requests fetched successfully');
+      return;
+    } catch (error) {
+      next(error);
+      return;
+    }
+  }
 }
 

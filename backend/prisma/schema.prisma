@@ -9,37 +9,46 @@ datasource db {
 }
 
 model User {
-  id                  String               @id @default(uuid())
-  email               String               @unique
+  id                  String                   @id @default(uuid())
+  email               String                   @unique
   password            String
-  fullName            String               @map("full_name")
-  role                UserRole             @default(PLAYER)
-  playerType          PlayerType?          @map("player_type")
+  fullName            String                   @map("full_name")
+  role                UserRole                 @default(PLAYER)
+  playerType          PlayerType?              @map("player_type")
   phone               String?
-  profilePictureUrl   String?              @map("profile_picture_url")
+  profilePictureUrl   String?                  @map("profile_picture_url")
   city                String?
-  locationLatitude    Decimal?             @map("location_latitude") @db.Decimal(10, 8)
-  locationLongitude   Decimal?             @map("location_longitude") @db.Decimal(11, 8)
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  isBlocked           Boolean              @default(false) @map("is_blocked")
-  isSuspended         Boolean              @default(false) @map("is_suspended")
-  suspendReason       String?              @map("suspend_reason")
-  suspendedAt         DateTime?            @map("suspended_at")
-  matchesAsApprover   Match[]                    @relation("MatchApprover")
-  matchesAsScorer     Match[]                    @relation("MatchScorer")
+  locationLatitude    Decimal?                 @map("location_latitude") @db.Decimal(10, 8)
+  locationLongitude   Decimal?                 @map("location_longitude") @db.Decimal(11, 8)
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
+  isBlocked           Boolean                  @default(false) @map("is_blocked")
+  isSuspended         Boolean                  @default(false) @map("is_suspended")
+  suspendReason       String?                  @map("suspend_reason")
+  suspendedAt         DateTime?                @map("suspended_at")
+  matchesAsApprover   Match[]                  @relation("MatchApprover")
+  matchesAsScorer     Match[]                  @relation("MatchScorer")
   notifications       Notification[]
   passwordResetTokens PasswordResetToken[]
   playerStats         PlayerStat[]
   refreshTokens       RefreshToken[]
   scoreUpdates        ScoreUpdate[]
   teamMemberships     TeamMember[]
-  captainedTeams      Team[]                     @relation("TeamCaptain")
+  captainedTeams      Team[]                   @relation("TeamCaptain")
   createdTournaments  Tournament[]
-  scoresSubmitted    MatchScoreVerification[]    @relation("ScoreSubmitter")
-  scoresVerified      MatchScoreVerification[]    @relation("ScoreVerifier")
-  approvalRequests    MatchStartApproval[]        @relation("ApprovalRequester")
-  approvalsGiven     MatchStartApproval[]         @relation("ApprovalApprover")
+  scoresSubmitted     MatchScoreVerification[] @relation("ScoreSubmitter")
+  scoresVerified      MatchScoreVerification[] @relation("ScoreVerifier")
+  approvalRequests    MatchStartApproval[]     @relation("ApprovalRequester")
+  approvalsGiven      MatchStartApproval[]     @relation("ApprovalApprover")
+  // New relations for enhanced scoring system
+  ballsEntered        Ball[]                   @relation("BallEntered")
+  batsmanOnStrike     Ball[]                   @relation("BatsmanOnStrike")
+  batsmanNonStrike    Ball[]                   @relation("BatsmanNonStrike")
+  bowled              Ball[]                   @relation("Bowler")
+  newApprovalRequests ApprovalRequest[]        @relation("NewApprovalRequester")
+  newApprovalsGiven   ApprovalRequest[]        @relation("NewApprovalApprover")
+  captainSettings     CaptainSettings?
+  auditLogs           AuditLog[]
 
   @@index([email])
   @@index([role])
@@ -143,42 +152,55 @@ model Tournament {
 }
 
 model Match {
-  id                  String                  @id @default(uuid())
-  tournamentId        String?                  @map("tournament_id")
-  teamAId             String                   @map("team_a_id")
-  teamBId             String                   @map("team_b_id")
-  venue               String
-  matchDate           DateTime                 @map("match_date")
-  matchType           MatchType?               @map("match_type")
-  status              MatchStatus              @default(SCHEDULED)
-  scoringCaptainId    String?                  @map("scoring_captain_id")
-  approvedByCaptainId String?                  @map("approved_by_captain_id")
-  winnerTeamId        String?                  @map("winner_team_id")
-  createdAt           DateTime                 @default(now()) @map("created_at")
-  updatedAt           DateTime                 @updatedAt @map("updated_at")
+  id                      String                   @id @default(uuid())
+  tournamentId            String?                  @map("tournament_id")
+  teamAId                 String                   @map("team_a_id")
+  teamBId                 String                   @map("team_b_id")
+  venue                   String
+  matchDate               DateTime                 @map("match_date")
+  matchType               MatchType?               @map("match_type")
+  status                  MatchStatus              @default(SCHEDULED)
+  scoringCaptainId        String?                  @map("scoring_captain_id")
+  approvedByCaptainId     String?                  @map("approved_by_captain_id")
+  winnerTeamId            String?                  @map("winner_team_id")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
   // Scoring fields (Feature 4)
-  scoringStatus       String?                  @default("NOT_STARTED") @map("scoring_status")
-  currentInning       Int?                     @default(1) @map("current_inning")
-  teamAScore          Int?                     @default(0) @map("team_a_score")
-  teamAWickets        Int?                     @default(0) @map("team_a_wickets")
-  teamAOvers          Decimal?                 @default(0) @map("team_a_overs") @db.Decimal(4, 1)
-  teamBScore          Int?                     @default(0) @map("team_b_score")
-  teamBWickets        Int?                     @default(0) @map("team_b_wickets")
-  teamBOvers          Decimal?                 @default(0) @map("team_b_overs") @db.Decimal(4, 1)
-  scoringStartedAt    DateTime?                @map("scoring_started_at")
-  scoringCompletedAt  DateTime?                @map("scoring_completed_at")
-  scoringStartedBy    String?                  @map("scoring_started_by")
-  scores              MatchScore[]
-  approvedByCaptain   User?                    @relation("MatchApprover", fields: [approvedByCaptainId], references: [id])
-  scoringCaptain      User?                    @relation("MatchScorer", fields: [scoringCaptainId], references: [id])
-  teamA               Team                     @relation("MatchTeamA", fields: [teamAId], references: [id])
-  teamB               Team                     @relation("MatchTeamB", fields: [teamBId], references: [id])
-  tournament          Tournament?              @relation(fields: [tournamentId], references: [id], onUpdate: NoAction)
-  winnerTeam          Team?                    @relation("MatchWinner", fields: [winnerTeamId], references: [id])
-  playerStats         PlayerStat[]
-  scoreUpdates        ScoreUpdate[]
-  scoreVerifications  MatchScoreVerification[]
-  startApprovals      MatchStartApproval[]
+  scoringStatus           String?                  @default("NOT_STARTED") @map("scoring_status")
+  currentInning           Int?                     @default(1) @map("current_inning")
+  teamAScore              Int?                     @default(0) @map("team_a_score")
+  teamAWickets            Int?                     @default(0) @map("team_a_wickets")
+  teamAOvers              Decimal?                 @default(0) @map("team_a_overs") @db.Decimal(4, 1)
+  teamBScore              Int?                     @default(0) @map("team_b_score")
+  teamBWickets            Int?                     @default(0) @map("team_b_wickets")
+  teamBOvers              Decimal?                 @default(0) @map("team_b_overs") @db.Decimal(4, 1)
+  scoringStartedAt        DateTime?                @map("scoring_started_at")
+  scoringCompletedAt      DateTime?                @map("scoring_completed_at")
+  scoringStartedBy        String?                  @map("scoring_started_by")
+  // New innings tracking fields
+  firstInningsComplete    Boolean                  @default(false) @map("first_innings_complete")
+  secondInningsComplete   Boolean                  @default(false) @map("second_innings_complete")
+  // Approval tracking fields
+  scoringStartApprovedBy  String?                  @map("scoring_start_approved_by")
+  scoringStartApprovedAt  DateTime?                @map("scoring_start_approved_at")
+  secondInningsApprovedBy String?                  @map("second_innings_approved_by")
+  secondInningsApprovedAt DateTime?                @map("second_innings_approved_at")
+  finalScoreApprovedBy    Json?                    @default("[]") @map("final_score_approved_by") // Array of captain IDs stored as JSON
+  finalScoreApprovedAt    DateTime?                @map("final_score_approved_at")
+  scores                  MatchScore[]
+  balls                   Ball[]
+  approvalRequests        ApprovalRequest[]
+  auditLogs               AuditLog[]
+  approvedByCaptain       User?                    @relation("MatchApprover", fields: [approvedByCaptainId], references: [id])
+  scoringCaptain          User?                    @relation("MatchScorer", fields: [scoringCaptainId], references: [id])
+  teamA                   Team                     @relation("MatchTeamA", fields: [teamAId], references: [id])
+  teamB                   Team                     @relation("MatchTeamB", fields: [teamBId], references: [id])
+  tournament              Tournament?              @relation(fields: [tournamentId], references: [id], onUpdate: NoAction)
+  winnerTeam              Team?                    @relation("MatchWinner", fields: [winnerTeamId], references: [id])
+  playerStats             PlayerStat[]
+  scoreUpdates            ScoreUpdate[]
+  scoreVerifications      MatchScoreVerification[]
+  startApprovals          MatchStartApproval[]
 
   @@index([tournamentId])
   @@index([teamAId])
@@ -307,9 +329,15 @@ enum TournamentStatus {
 
 enum MatchStatus {
   SCHEDULED
-  LIVE
+  SCORING_PENDING
+  FIRST_INNINGS
+  SECOND_INNINGS_PENDING
+  SECOND_INNINGS
+  FINAL_PENDING
   COMPLETED
   CANCELLED
+  DISPUTED
+  LIVE // Keep for backward compatibility, will be deprecated
 }
 
 enum MatchType {
@@ -324,6 +352,10 @@ enum NotificationType {
   MATCH_SCHEDULED
   SCORE_UPDATE
   TEAM_UPDATE
+  APPROVAL_REQUESTED
+  APPROVAL_GRANTED
+  APPROVAL_AUTO_APPROVED
+  MATCH_STATUS_CHANGED
 }
 
 // Feature 5: Score Verification System
@@ -351,21 +383,165 @@ model MatchScoreVerification {
   @@map("match_score_verifications")
 }
 
-// Feature 6: Match Start Approval System
+// Feature 6: Match Start Approval System (Legacy - kept for backward compatibility)
 model MatchStartApproval {
-  id           String    @id @default(uuid())
-  matchId      String    @map("match_id")
-  match        Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  requestedBy  String    @map("requested_by")
-  requester    User      @relation("ApprovalRequester", fields: [requestedBy], references: [id], onDelete: Cascade)
-  approvedBy   String?   @map("approved_by")
-  approver     User?     @relation("ApprovalApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
-  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
-  requestedAt   DateTime  @default(now()) @map("requested_at")
-  respondedAt  DateTime? @map("responded_at")
+  id          String    @id @default(uuid())
+  matchId     String    @map("match_id")
+  match       Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  requestedBy String    @map("requested_by")
+  requester   User      @relation("ApprovalRequester", fields: [requestedBy], references: [id], onDelete: Cascade)
+  approvedBy  String?   @map("approved_by")
+  approver    User?     @relation("ApprovalApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  respondedAt DateTime? @map("responded_at")
 
   @@index([matchId])
   @@index([requestedBy])
   @@index([status])
   @@map("match_start_approvals")
+}
+
+// Enhanced Approval System - Unified for all approval points
+model ApprovalRequest {
+  id                 String         @id @default(uuid())
+  matchId            String         @map("match_id")
+  match              Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  type               ApprovalType
+  requestedBy        String         @map("requested_by")
+  requester          User           @relation("NewApprovalRequester", fields: [requestedBy], references: [id], onDelete: Cascade)
+  approvedBy         String?        @map("approved_by")
+  approver           User?          @relation("NewApprovalApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+  status             ApprovalStatus @default(PENDING)
+  requestedAt        DateTime       @default(now()) @map("requested_at")
+  approvedAt         DateTime?      @map("approved_at")
+  // Auto-approval fields
+  autoApproveAt      DateTime       @map("auto_approve_at")
+  autoApproveEnabled Boolean        @default(true) @map("auto_approve_enabled")
+  wasAutoApproved    Boolean        @default(false) @map("was_auto_approved")
+
+  @@index([matchId])
+  @@index([requestedBy])
+  @@index([status])
+  @@index([autoApproveAt])
+  @@index([type, status])
+  @@map("approval_requests")
+}
+
+enum ApprovalType {
+  START_SCORING
+  START_SECOND_INNINGS
+  FINAL_SCORE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  AUTO_APPROVED
+  EXPIRED
+  CANCELLED
+}
+
+// Ball-by-ball scoring model
+model Ball {
+  id               String      @id @default(uuid())
+  matchId          String      @map("match_id")
+  match            Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  innings          Int // 1 or 2
+  overNumber       Int         @map("over_number")
+  ballNumber       Int         @map("ball_number") // 1-6 (7+ for extras)
+  batsmanOnStrike  String      @map("batsman_on_strike")
+  striker          User        @relation("BatsmanOnStrike", fields: [batsmanOnStrike], references: [id])
+  batsmanNonStrike String      @map("batsman_non_strike")
+  nonStriker       User        @relation("BatsmanNonStrike", fields: [batsmanNonStrike], references: [id])
+  bowler           String
+  bowlerUser       User        @relation("Bowler", fields: [bowler], references: [id])
+  runs             Int         @default(0)
+  isWicket         Boolean     @default(false) @map("is_wicket")
+  wicketType       WicketType? @map("wicket_type")
+  dismissedPlayer  String?     @map("dismissed_player")
+  fielder          String? // For caught/run out
+  isWide           Boolean     @default(false) @map("is_wide")
+  isNoBall         Boolean     @default(false) @map("is_no_ball")
+  isBye            Boolean     @default(false) @map("is_bye")
+  isLegBye         Boolean     @default(false) @map("is_leg_bye")
+  timestamp        DateTime    @default(now())
+  enteredBy        String      @map("entered_by")
+  enteredByUser    User        @relation("BallEntered", fields: [enteredBy], references: [id])
+
+  @@index([matchId, innings, overNumber])
+  @@index([matchId])
+  @@index([batsmanOnStrike])
+  @@index([bowler])
+  @@index([timestamp])
+  @@map("balls")
+}
+
+enum WicketType {
+  BOWLED
+  CAUGHT
+  LBW
+  RUN_OUT
+  STUMPED
+  HIT_WICKET
+  RETIRED_HURT
+}
+
+// Captain settings for timeout preferences
+model CaptainSettings {
+  id                  String   @id @default(uuid())
+  userId              String   @unique @map("user_id")
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  autoApproveEnabled  Boolean  @default(true) @map("auto_approve_enabled")
+  timeoutMinutes      Int      @default(5) @map("timeout_minutes")
+  notifyOnAutoApprove Boolean  @default(true) @map("notify_on_auto_approve")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("captain_settings")
+}
+
+// Comprehensive audit logging
+model AuditLog {
+  id              String        @id @default(uuid())
+  matchId         String?       @map("match_id")
+  match           Match?        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  action          AuditAction
+  performedBy     String        @map("performed_by")
+  user            User          @relation(fields: [performedBy], references: [id])
+  performedAt     DateTime      @default(now()) @map("performed_at")
+  // State tracking
+  previousState   Json?         @map("previous_state")
+  newState        Json?         @map("new_state")
+  // Context
+  approvalType    ApprovalType? @map("approval_type")
+  wasAutoApproved Boolean?      @map("was_auto_approved")
+  ballNumber      Int?          @map("ball_number")
+  overNumber      Int?          @map("over_number")
+  // Meta
+  ipAddress       String?       @map("ip_address")
+  userAgent       String?       @map("user_agent")
+
+  @@index([matchId, performedAt])
+  @@index([action, performedAt])
+  @@index([performedBy])
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  MATCH_CREATED
+  STATUS_CHANGED
+  APPROVAL_REQUESTED
+  APPROVAL_GRANTED
+  APPROVAL_REJECTED
+  APPROVAL_AUTO_APPROVED
+  BALL_ENTERED
+  BALL_DELETED
+  BALL_MODIFIED
+  INNINGS_ENDED
+  STATS_CALCULATED
+  STATS_UPDATED
+  TIMEOUT_ENABLED
+  TIMEOUT_DISABLED
 }
